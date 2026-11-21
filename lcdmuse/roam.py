@@ -82,6 +82,7 @@ class RoamingPet:
     direction: int = 1                                 # +1 向右、-1 向左
     speed: float = 0.09                                # 每秒移动画布宽度的比例
     dwell: float = 40.0                                # 一块屏待多久后考虑换屏
+    min_stay: float = 20.0                             # 换屏后至少在本屏待这么久，别来回跳
     margin: int = 14
 
     _last: float = field(default=0.0, repr=False)
@@ -164,14 +165,27 @@ class RoamingPet:
 
         if self._action == "walk":
             self.x += self.speed * dt * self.direction
-            if self.x >= 1.0:                            # 走出右边 → 进下一块屏
-                self.x = 0.0
-                self._hop(1)
-            elif self.x <= 0.0:                          # 走出左边 → 退到上一块屏
-                self.x = 1.0
-                self._hop(-1)
-        elif self._since_hop > self.dwell and random.random() < dt / self.dwell:
-            self._hop(1)                                 # 待久了换个屏
+            edge = 1.06                                  # 整只走到画面外才算「走出去」
+            if self.x >= edge or self.x <= -0.06:
+                if len(self.order) > 1 and self._since_hop >= self.min_stay:
+                    # 真的换屏：从另一块屏的同一侧边缘走进来，不是瞬间跳到左边
+                    if self.x >= edge:
+                        self._hop(1, enter="left")
+                    else:
+                        self._hop(-1, enter="right")
+                else:
+                    # 只有一块屏（或者刚换过屏）就到边掉头：停在可见边缘，不要半只滑出去
+                    self.x = min(0.94, max(0.0, self.x))
+                    self.direction *= -1
+        elif (self._since_hop > self.dwell and 0.05 < self.x < 0.9
+              and random.random() < dt / self.dwell):
+            # 待久了换个屏：只在画面里的时候换，换过去也从边缘走进来
+            self._hop(random.choice((1, -1)),
+                      enter="left" if self.direction > 0 else "right")
+
+        # 兜底：只要不是走着，就不该停在画面外（否则会「消失」）
+        if self._action != "walk":
+            self.x = min(0.94, max(0.02, self.x))
 
     def _start_ambient(self, now: float) -> None:
         total = sum(w for _, w, _, _ in AMBIENT)
@@ -218,10 +232,17 @@ class RoamingPet:
         with contextlib.suppress(Exception):
             self.pet.set_state("idle" if "idle" in states else next(iter(states)))
 
-    def _hop(self, step: int = 1) -> None:
+    def _hop(self, step: int = 1, enter: str = "left") -> None:
         if len(self.order) > 1:
             self.index = (self.index + step) % len(self.order)
+        # 换到新屏后从指定一侧的边缘外开始走，视觉上是「走出去又走进来」
+        self.x = -0.06 if enter == "left" else 1.06
+        self.direction = 1 if enter == "left" else -1
         self._since_hop = 0.0
+        # 换屏后先走几步，别一出现就站着
+        self._action = "walk"
+        self._action_until = self._last + 3.0
+        self._next_ambient = self._action_until
         self._action = "idle"
         self._action_until = self._last + random.uniform(0.8, 2.0)
         self._next_ambient = self._action_until
@@ -231,6 +252,13 @@ class RoamingPet:
     @property
     def current(self) -> str | None:
         return self.order[self.index] if self.order else None
+
+    def snapshot(self) -> dict:
+        """给面板/自检看当前状态，免得每次都靠人眼看屏。"""
+        return {"order": list(self.order), "current": self.current, "index": self.index,
+                "x": round(self.x, 3), "direction": self.direction,
+                "action": self._action, "activity": self._activity,
+                "enabled": self.enabled, "bubble": self._bubble}
 
     def draw_on(self, device_id: str, canvas_w: int, canvas_h: int,
                 step: int, now: float | None = None,
@@ -263,8 +291,8 @@ class RoamingPet:
         if self._action == "walk" and wants_mirror:
             sprite = ImageOps.mirror(sprite)
 
-        x = int(self.x * max(1, canvas_w - sprite.width))
-        x = max(0, min(canvas_w - sprite.width, x))
+        # 不夹在画面内：走到边缘时要允许整只走出画面，换屏才像"走出去再走进来"
+        x = int(self.x * canvas_w)
         y = max(0, canvas_h - sprite.height - self.margin)
         bubble = self._bubble if now < self._bubble_until else ""
         return PetDraw(sprite=sprite, x=x, y=y, bubble=bubble)

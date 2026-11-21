@@ -820,7 +820,8 @@ def test_roaming_pet_is_on_one_screen_at_a_time():
                     "walk": {"row": 0, "frames": 4, "fps": 4}},
     }), encoding="utf-8")
 
-    roam = RoamingPet(pet=Pet.load(d), order=["screenA", "screenB"], speed=5.0, dwell=999)
+    roam = RoamingPet(pet=Pet.load(d), order=["screenA", "screenB"], speed=5.0,
+                      dwell=999, min_stay=0.0)
     # 固定成「一直走路」，别让随机行为调度干扰断言
     roam._action, roam.direction = "walk", 1
     roam._action_until = roam._next_ambient = 1e18
