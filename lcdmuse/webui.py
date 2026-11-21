@@ -125,6 +125,27 @@ class _Handler(BaseHTTPRequestHandler):
             from lcdmuse.pet import list_pets, pet_dirs
             self._json({"pets": list_pets(pet_dirs(self.cfg))})
             return
+        if url.path == "/api/pick-file":
+            # 用系统文件对话框选底图/视频：前端弹 prompt 太糙，这里直接开原生窗口
+            path = ""
+            error = ""
+            try:
+                import tkinter as tk
+                from tkinter import filedialog
+                root = tk.Tk()
+                root.withdraw()
+                root.attributes("-topmost", True)
+                path = filedialog.askopenfilename(
+                    title="选一张底图 / GIF / 视频",
+                    filetypes=[("图片与视频", "*.png *.jpg *.jpeg *.webp *.gif *.bmp *.mp4 *.webm *.avi *.mkv"),
+                               ("全部文件", "*.*")])
+                root.destroy()
+            except Exception as exc:
+                error = f"{type(exc).__name__}: {exc}"
+            self._json({"ok": bool(path), "path": path, "error": error,
+                        "cancelled": not path and not error})
+            return
+            return
         if url.path == "/api/preview":
             query = parse_qs(url.query)
             index = int(query.get("i", [str(self.selected)])[0])
@@ -177,11 +198,15 @@ class _Handler(BaseHTTPRequestHandler):
             return self._json({"ok": True, "paused": target})
 
         if url.path == "/api/pet":
+            index = data.get("index")
+            index = self.selected if index is None else int(index)
+            index = max(0, min(index, len(self.players) - 1))
+            player = self.players[index]
             want = data.get("enabled")
-            enable = (self.players[0].pet_name is None) if want is None else bool(want)
-            for player in self.players:
-                player.set_pet((self.cfg.default_pet or "whale-girl") if enable else None)
-            return self._json({"ok": True, "enabled": enable})
+            enable = (player.pet_name is None) if want is None else bool(want)
+            player.set_pet((self.cfg.default_pet or "whale-girl") if enable else None)
+            return self._json({"ok": True, "index": index, "enabled": enable,
+                               "pet": player.pet_name})
 
         if url.path == "/api/rename":
             index = int(data.get("index") or 0)
@@ -192,12 +217,25 @@ class _Handler(BaseHTTPRequestHandler):
             return self._json({"ok": True, "alias": self.cfg.name_for(pid, "")})
 
         if url.path == "/api/open":
-            from lcdmuse.tray import _open_path
             from pathlib import Path
             target = "plugins" if data.get("target") == "plugins" else "logs"
-            path = self.cfg.ensure_user_drivers() if target == "plugins" \
-                else Path(self.cfg.out_dir).parent / "logs"
-            _open_path(path)
+            if target == "plugins":
+                path = self.cfg.ensure_user_drivers()
+            else:
+                path = Path(__file__).resolve().parent.parent / "logs"
+                path.mkdir(parents=True, exist_ok=True)
+            error = ""
+            try:
+                if os.name == "nt":
+                    os.startfile(str(path))            # noqa: S606
+                else:
+                    import subprocess
+                    import sys as _sys
+                    opener = "xdg-open" if _sys.platform.startswith("linux") else "open"
+                    subprocess.Popen([opener, str(path)])
+            except Exception as exc:
+                error = f"{type(exc).__name__}: {exc}"
+            return self._json({"ok": not error, "path": str(path), "error": error})
             return self._json({"ok": True, "path": str(path)})
 
         if url.path == "/api/theme":

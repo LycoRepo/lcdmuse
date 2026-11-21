@@ -1,4 +1,4 @@
-let selected = 0, timer = null, lastFrames = -1, history = [], historyFor = -1;
+let selected = 0, history = [], historyFor = -1, lastFrames = -1;
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c =>
@@ -10,40 +10,69 @@ async function api(path, body){
   return r.json();
 }
 
+// ── 弹层（换主题 / 换底图 都用它，不再用浏览器 prompt）────────────────
+function openModal(title, bodyHTML, footHTML = ""){
+  $("mtitle").textContent = title;
+  $("mbody").innerHTML = bodyHTML;
+  $("mfoot").innerHTML = footHTML;
+  $("modal").hidden = false;
+}
+function closeModal(){ $("modal").hidden = true; $("mbody").innerHTML = ""; }
+function toast(msg, bad){
+  const t = $("toast");
+  t.textContent = msg;
+  t.className = "toast" + (bad ? " bad" : "");
+  t.hidden = false;
+  clearTimeout(t._h);
+  t._h = setTimeout(() => { t.hidden = true; }, 3800);
+}
+
+// ── 交互都挂在容器上：nav 每秒重建也不会丢事件 ────────────────────────
+$("nav").addEventListener("click", async ev => {
+  const el = ev.target.closest("[data-act]");
+  if (!el) return;
+  const act = el.dataset.act;
+  if (act === "device"){ selected = +el.dataset.i; await api("/api/select", {index:selected}); tick(); }
+  else if (act === "pet") togglePet();
+  else if (act === "theme") openThemePicker();
+  else if (act === "bg") openBgPicker();
+  else if (act === "plugins") openPath("plugins");
+  else if (act === "logs") openPath("logs");
+  else if (act === "quit") quit();
+});
+
+$("mclose").onclick = closeModal;
+$("modal").addEventListener("click", ev => { if (ev.target.id === "modal") closeModal(); });
+document.addEventListener("keydown", ev => { if (ev.key === "Escape") closeModal(); });
+
+async function openPath(target){
+  const r = await api("/api/open", {target});
+  if (r.ok) toast("已打开：" + r.path);
+  else toast("打不开：" + (r.error || r.path), true);
+}
+
 function render(s){
   $("ver").textContent = "v" + s.version;
   const devs = s.devices || [];
   if (selected >= devs.length) selected = 0;
+  const d = devs[selected] || {};
 
-  // 左栏
   $("nav").innerHTML =
     `<h6>设备</h6>` +
-    devs.map((d,i) => `<div class="item ${i===selected?"on":""}" data-i="${i}" title="${esc(d.alias)}">
-        <span class="dotrow"><i class="dot ${d.error?"bad":(d.running?"":"off")}"></i></span>
-        <span class="txt">${esc(d.alias)}</span>
-        <span class="sub num">${d.fps.toFixed(1)}</span></div>`).join("") +
+    devs.map((x,i) => `<div class="item ${i===selected?"on":""}" data-act="device" data-i="${i}" title="${esc(x.alias)}">
+        <span class="dotrow"><i class="dot ${x.error?"bad":(x.running?"":"off")}"></i></span>
+        <span class="txt">${esc(x.alias)}</span>
+        <span class="sub num">${x.fps.toFixed(1)}</span></div>`).join("") +
     `<div class="sep"></div><h6>显示</h6>
-       <div class="item" id="navPet">桌宠<span class="sub">${devs[0]&&devs[0].pet?"开":"关"}</span></div>
-       <div class="item" id="navTheme" title="点一下换主题插件">主题<span class="sub">${esc(s.theme || "测试卡")}</span></div>
-       <div class="item" id="navBg" title="点一下换底图：图片 / GIF / 视频">底图<span class="sub">${s.background ? "自定义" : "主题自带"}</span></div>
+       <div class="item" data-act="pet" title="只对当前选中的设备生效">桌宠<span class="sub">${d.pet?"开":"关"}</span></div>
+       <div class="item" data-act="theme" title="选一个主题插件">主题<span class="sub">${esc(s.theme || "测试卡")}</span></div>
+       <div class="item" data-act="bg" title="图片 / GIF / 视频">底图<span class="sub">${s.background ? "自定义" : "主题自带"}</span></div>
      <div class="sep"></div><h6>系统</h6>
-       <div class="item" id="navPlugins">插件目录</div>
-       <div class="item" id="navLogs">日志</div>
-       <div class="item" id="navQuit">退出</div>
+       <div class="item" data-act="plugins">插件目录</div>
+       <div class="item" data-act="logs">日志</div>
+       <div class="item" data-act="quit">退出</div>
      <div class="footnote">${devs.length} 台设备 · 插件从用户目录自动加载</div>`;
 
-  $("nav").querySelectorAll(".item[data-i]").forEach(el => {
-    el.onclick = async () => { selected = +el.dataset.i; await api("/api/select", {index:selected}); tick(); };
-  });
-  $("navPet").onclick = togglePet;
-  $("navTheme").onclick = pickTheme;
-  $("navBg").onclick = pickBackground;
-  $("navPlugins").onclick = () => api("/api/open", {target:"plugins"});
-  $("navLogs").onclick = () => api("/api/open", {target:"logs"});
-  $("navQuit").onclick = quit;
-
-  // 主区
-  const d = devs[selected] || {};
   $("cur").textContent = d.alias ? d.alias : "没有探测到设备";
   $("curMeta").textContent = d.size ? `${d.size[0]}×${d.size[1]} · ${d.plugin||""}` : "接上屏或先跑 lcdmuse probe";
 
@@ -58,7 +87,6 @@ function render(s){
     ["插件目录", s.user_drivers || "—"],
   ].map(([k,v]) => `<tr><td>${k}</td><td class="num" style="word-break:break-all">${esc(v)}</td></tr>`).join("");
 
-  // 预览：只有帧号变了才换图，别每秒重下
   const screen = $("screen");
   if (d.frames !== undefined && d.frames !== lastFrames && d.frames > 0){
     lastFrames = d.frames;
@@ -74,7 +102,6 @@ function render(s){
     ["分辨率", d.size ? `${d.size[0]}×${d.size[1]}` : "—"],
   ].map(([k,v]) => `<span>${k}</span><span class="num">${v}</span>`).join("");
 
-  // 帧率曲线：只留最近 60 个采样点，切设备就重新开始
   if (historyFor !== selected){ historyFor = selected; history = []; lastFrames = -1; }
   history.push(d.fps || 0);
   if (history.length > 60) history.shift();
@@ -91,9 +118,8 @@ function drawChart(){
   const c = $("chart"), g = c.getContext("2d");
   const w = c.width, h = c.height;
   g.clearRect(0,0,w,h);
-  const peak = Math.max(0.5, ...history, 1);
+  const peak = Math.max(1, ...history);
   $("chartMax").textContent = "峰值 " + peak.toFixed(1) + " fps";
-  // 基线
   g.strokeStyle = "rgba(135,152,171,.18)"; g.lineWidth = 1;
   g.beginPath(); g.moveTo(0, h - 1); g.lineTo(w, h - 1); g.stroke();
   g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
@@ -105,34 +131,68 @@ function drawChart(){
     i ? g.lineTo(x,y) : g.moveTo(x,y);
   });
   g.strokeStyle = "#3fbfe0"; g.lineWidth = 2; g.lineJoin = "round"; g.stroke();
-  const lastY = h - 4 - (history[history.length-1] / peak) * (h - 12);
   g.lineTo(w, h); g.lineTo(0, h); g.closePath();
   g.fillStyle = "rgba(63,191,224,.14)"; g.fill();
 }
 
 async function tick(){ try{ render(await api("/api/status")); }catch(e){ $("status").textContent = "与本地服务断开：" + e; } }
-async function togglePet(){ await api("/api/pet", {}); tick(); }
 
-async function pickTheme(){
-  const data = await api("/api/themes");
+async function togglePet(){
+  const r = await api("/api/pet", {index: selected});
+  toast(r.ok ? (r.enabled ? `已在当前设备打开桌宠：${r.pet || ""}` : "已关闭当前设备的桌宠") : "切换失败", !r.ok);
+  tick();
+}
+
+async function openThemePicker(){
+  let data = {themes: []};
+  try { data = await api("/api/themes"); } catch(e) {}
   const list = data.themes || [];
-  if (!list.length){ alert("themes/ 里还没有主题插件"); return; }
-  const lines = list.map((t,i) => `${i+1}. ${t.id} — ${t.name}${t.has_mask?"（带蒙版）":""}`).join("\n");
-  const answer = prompt(`换主题（输入编号，留空=测试卡）：\n${lines}`, "");
-  if (answer === null) return;
-  const idx = parseInt(answer, 10);
-  const id = answer.trim() === "" ? "" : (list[idx-1] ? list[idx-1].id : answer.trim());
-  await api("/api/theme", {id});
-  tick();
+  const rows = [`<div class="opt" data-id=""><b>测试卡</b><span>不套主题，只画指标</span></div>`]
+    .concat(list.map(t => `<div class="opt" data-id="${esc(t.id)}">
+        <b>${esc(t.name || t.id)}</b>
+        <span>${esc(t.id)}${t.has_mask ? " · 带蒙版" : ""} · ${t.size ? t.size.join("×") : ""}</span></div>`));
+  openModal("换主题", rows.join(""),
+    `<button class="primary" id="mok">关闭</button>`);
+  $("mok").onclick = closeModal;
+  $("mbody").querySelectorAll(".opt").forEach(el => {
+    el.onclick = async () => {
+      const id = el.dataset.id;
+      const r = await api("/api/theme", {id});
+      closeModal();
+      toast(r.ok ? (id ? "已切到主题 " + id : "已切回测试卡") : "切换失败", !r.ok);
+      tick();
+    };
+  });
 }
 
-async function pickBackground(){
-  const current = (await api("/api/status")).background || "";
-  const path = prompt("底图路径（图片 / GIF / 视频；留空=用主题自带的）：", current);
-  if (path === null) return;
-  await api("/api/background", {path});
-  tick();
+async function openBgPicker(){
+  const s = await api("/api/status");
+  const cur = s.background || "";
+  openModal("换底图", `
+    <div class="opt" data-mode="theme"><b>主题自带</b><span>清空自定义底图，回到主题里的那张</span></div>
+    <div class="opt" data-mode="file"><b>选个文件…</b><span>打开系统文件对话框，挑图片 / GIF / 视频</span></div>
+    <div class="pathrow"><input id="bgpath" placeholder="或直接粘贴路径" value="${esc(cur)}">
+      <button id="bgapply">应用</button></div>`,
+    `<button class="primary" id="mok">关闭</button>`);
+  $("mok").onclick = closeModal;
+  $("mbody").querySelector('[data-mode="theme"]').onclick = async () => {
+    const r = await api("/api/background", {path: ""});
+    closeModal(); toast(r.ok ? "已回到主题自带的底图" : "设置失败", !r.ok); tick();
+  };
+  $("mbody").querySelector('[data-mode="file"]').onclick = async () => {
+    toast("正在打开文件选择框…");
+    const r = await api("/api/pick-file", {});
+    if (!r.ok){ if (!r.cancelled) toast("打开文件框失败：" + (r.error || ""), true); return; }
+    const res = await api("/api/background", {path: r.path});
+    closeModal(); toast(res.ok ? "底图已换：" + r.path.split(/[\\/]/).pop() : "设置失败", !res.ok); tick();
+  };
+  $("bgapply").onclick = async () => {
+    const path = $("bgpath").value.trim();
+    const r = await api("/api/background", {path});
+    closeModal(); toast(r.ok ? "底图已设置" : "设置失败", !r.ok); tick();
+  };
 }
+
 async function quit(){ await api("/api/quit", {}); document.body.innerHTML =
   `<div style="padding:40px;color:#8798ab;font:13px 'Microsoft YaHei UI'">已退出，设备已释放。</div>`; }
 
@@ -141,11 +201,16 @@ $("pet").onclick = togglePet;
 $("rename").onclick = async () => {
   const s = await api("/api/status");
   const d = (s.devices||[])[selected]; if (!d) return;
-  const name = prompt(`给「${d.alias}」起个显示名（留空恢复默认）`, d.alias);
-  if (name === null) return;
-  await api("/api/rename", {index:selected, name});
-  tick();
+  openModal("重命名设备", `
+    <div class="pathrow"><input id="newname" value="${esc(d.alias)}" placeholder="留空恢复默认"></div>`,
+    `<button class="primary" id="mok">保存</button><button id="mcancel">取消</button>`);
+  $("mcancel").onclick = closeModal;
+  $("mok").onclick = async () => {
+    const name = $("newname").value.trim();
+    await api("/api/rename", {index: selected, name});
+    closeModal(); tick();
+  };
+  $("newname").focus(); $("newname").select();
 };
-
 
 tick(); setInterval(tick, 1000);
