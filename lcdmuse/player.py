@@ -110,6 +110,8 @@ class Player:
     # ── 主循环 ──────────────────────────────────────────────────────────
     def _run(self) -> None:
         backoff = 3.0
+        last_beat = 0.0
+        last_push = 0.0
         while not self._stop.is_set():
             if not self.plugin_id:
                 self.plugin_id = self.autodetect()
@@ -137,9 +139,15 @@ class Player:
                 continue
 
             if pushed:
-                elapsed = max(1e-6, time.time() - started)
+                now = time.time()
+                gap = now - last_push if last_push else max(1e-3, now - started)
+                last_push = now
                 self.status.frames += 1
-                self.status.fps = 1.0 / max(elapsed, 1e-3)
+                self.status.fps = 1.0 / max(gap, 1e-3)
+                if time.time() - last_beat >= 30:
+                    last_beat = time.time()
+                    log.info("心跳 %s：%d 帧，%.1f fps", self.status.device or self.plugin_id,
+                             self.status.frames, self.status.fps)
             self._stop.wait(self.interval)
 
     def _push_once(self) -> None:
