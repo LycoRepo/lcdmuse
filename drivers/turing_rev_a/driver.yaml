@@ -1,0 +1,13 @@
+id: turing_rev_a
+name: Turing rev A（3.5/5 寸串口）
+version: 0.1.0
+api: 1
+entry: driver:TuringRevADriver
+platforms: [windows, linux]
+requires: [serial]
+enabled_by_default: false
+description: 1a86:5722 或序列号 USB35INCHIPSV2，115200 串口
+settings_schema:
+  port: {type: str, default: "AUTO", label: 串口}
+  width: {type: int, default: 320, label: 宽}
+  height: {type: int, default: 480, label: 高}

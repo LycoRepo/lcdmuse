@@ -1,0 +1,11 @@
+id: simulated
+name: 模拟屏（离线验证）
+version: 0.1.0
+api: 1
+entry: driver:SimulatedDriver
+platforms: [windows, linux, darwin]
+requires: []
+description: 不接硬件，把帧存成 PNG 并统计；用来验证契约、渲染与 CLI，也是写驱动的示例
+settings_schema:
+  width:  {type: int, default: 960, label: 宽}
+  height: {type: int, default: 480, label: 高}
