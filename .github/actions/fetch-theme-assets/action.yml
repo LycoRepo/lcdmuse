@@ -32,20 +32,21 @@ runs:
         git init -q "$checkout_dir"
         cd "$checkout_dir"
         git remote add origin "${{ inputs.upstream-repository }}"
-        # Only the assets used by the tests are fetched (fonts, one theme, one icon)
-        git sparse-checkout set --no-cone \
-          '/res/themes/default.yaml' \
-          '/res/themes/3.5inchTheme2/' \
-          '/res/icons/monitor-icon-17865/' \
-          '/res/fonts/roboto/' \
-          '/res/fonts/roboto-mono/' \
-          '/res/fonts/geforce/' \
-          '/res/fonts/jetbrains-mono/'
-        git fetch --depth 1 --filter=blob:none origin "${{ inputs.upstream-commit }}"
-        git checkout FETCH_HEAD
-        git --version
-        git log --oneline -1
-        git ls-files | head -5
-        ls -la
+        # Only the assets used by the tests are fetched (fonts, one theme, one icon).
+        # The pattern file is written directly: 'git sparse-checkout set' does not
+        # take effect before the first commit is fetched (empty worktree on Windows).
+        git config core.sparseCheckout true
+        cat > .git/info/sparse-checkout <<'PATTERNS'
+        /res/themes/default.yaml
+        /res/themes/3.5inchTheme2/
+        /res/icons/monitor-icon-17865/
+        /res/fonts/roboto/
+        /res/fonts/roboto-mono/
+        /res/fonts/geforce/
+        /res/fonts/jetbrains-mono/
+        PATTERNS
+
+        git fetch -q --depth 1 --filter=blob:none origin "${{ inputs.upstream-commit }}"
+        git checkout -q FETCH_HEAD
         cp -r res "$destination/"
         du -sh "$destination/res"
