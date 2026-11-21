@@ -282,7 +282,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     tr = sub.add_parser("tray", help="托盘常驻（右键菜单：暂停/桌宠/退出）")
     tr.add_argument("--plugin", default="", help="留空自动探测设备")
-    tr.add_argument("--interval", type=float, default=1.0, help="推帧间隔（秒）")
+    tr.add_argument("--interval", type=float, default=0.2, help="推帧间隔（秒）")
     tr.add_argument("--pet", default="", help="桌宠名；传 none 表示关掉桌宠")
     tr.add_argument("--port", type=int, default=0, help="控制台/MCP 固定端口（默认随机）")
     tr.set_defaults(func=cmd_tray)

@@ -110,7 +110,7 @@ def _open_path(path: Path) -> None:
         log.warning("打开 %s 失败: %s", path, exc)
 
 
-def run_tray(cfg: Config, plugin_id: str = "", interval: float = 1.0,
+def run_tray(cfg: Config, plugin_id: str = "", interval: float = 0.2,
              pet: str | None = "whale-girl", port: int = 0) -> int:
     try:
         import pystray

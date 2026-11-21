@@ -34,7 +34,7 @@ class Composition:
 
     def render(self, size: tuple[int, int], now: float | None = None,
                metrics: Mapping[str, Any] | None = None) -> Image.Image:
-        values = dict(metrics) if metrics is not None else get_hub().sample(now)
+        values = dict(metrics) if metrics is not None else get_hub().sample(now, ttl=0.5)
         if self.theme is not None:
             try:
                 canvas = self.theme.render(size, metrics=values, now=now,

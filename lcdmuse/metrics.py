@@ -52,6 +52,7 @@ class MetricsHub:
 
     providers: dict[str, Provider] = field(default_factory=dict)
     _last: dict[str, Any] = field(default_factory=dict)
+    _stamp: float = 0.0
     _last_net: tuple[float, int, int] | None = None
 
     def register(self, prefix: str, provider: Provider) -> None:
@@ -59,8 +60,15 @@ class MetricsHub:
         self.providers[prefix] = provider
 
     # ── 采样 ────────────────────────────────────────────────────────────
-    def sample(self, now: float | None = None) -> dict[str, Any]:
+    def sample(self, now: float | None = None, ttl: float = 0.0) -> dict[str, Any]:
+        """ttl > 0 时，ttl 秒内直接返回上次结果。
+
+        psutil 采 CPU/网络一次要几十毫秒，而画面 5–10 fps 时指标根本没必要每帧重采。
+        """
         now = now if now is not None else time.time()
+        if ttl > 0 and self._last and now - getattr(self, "_stamp", 0.0) < ttl:
+            return dict(self._last)
+        self._stamp = now
         data: dict[str, Any] = {}
         lt = time.localtime(now)
         data["time.now"] = time.strftime("%H:%M", lt)
