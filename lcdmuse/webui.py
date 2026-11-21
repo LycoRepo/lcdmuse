@@ -48,8 +48,10 @@ def _state(players: list[Player], cfg: Config, selected: int) -> dict[str, Any]:
         })
     theme = players[0].theme_id if players else ""
     background = getattr(players[0], "_background_path", "") if players else ""
+    from lcdmuse.mcp_server import TOOLS
     return {"version": __version__, "devices": devices, "selected": selected,
             "theme": theme, "background": background,
+            "mcp": {"ready": bool(players), "path": "/mcp", "tools": len(TOOLS)},
             "config_path": str(cfg.drivers_dir.parent / "lcdmuse.yaml"),
             "user_drivers": str(cfg.user_drivers_dir)}
 
