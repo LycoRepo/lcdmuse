@@ -722,3 +722,33 @@ def test_mcp_render_preview_and_web_endpoint(tmp_path):
         assert list(inner["data"]["values"]) == ["cpu.percent"]
     finally:
         server.shutdown()
+
+
+# ── 精灵图桌宠 ────────────────────────────────────────────────────────────
+def test_pet_loads_spritesheet_and_slices_rows(tmp_path):
+    """精灵图格式：pet.json 里给 spritesheet + 每个状态给 row，加载器按格裁。"""
+    import json
+    sheet = _Img.new("RGBA", (4 * 8, 2 * 8), (0, 0, 0, 0))
+    for col in range(4):                       # 第 0 行画红块，第 1 行画绿块
+        sheet.paste((255, 0, 0, 255), (col * 8, 0, (col + 1) * 8, 8))
+        sheet.paste((0, 255, 0, 255), (col * 8, 8, (col + 1) * 8, 16))
+    root = tmp_path / "sheetpet"
+    root.mkdir()
+    sheet.save(root / "sheet.webp")
+    (root / "pet.json").write_text(json.dumps({
+        "name": "sheetpet", "display_name": "格子测试", "api": 1, "kind": "pet",
+        "spritesheet": {"path": "sheet.webp", "columns": 4, "rows": 2},
+        "states": {"idle": {"row": 0, "frames": 4, "fps": 8}, "eat": {"row": 1, "frames": 4, "fps": 8}},
+    }), encoding="utf-8")
+
+    pet = Pet.load(root)
+    assert pet.frame_size == (8, 8)
+    assert sorted(pet.state_names) == ["eat", "idle"]
+    idle = pet.frame_at(0.0).convert("RGB")
+    assert idle.size == (8, 8)
+    assert idle.getpixel((4, 4))[0] > 200 and idle.getpixel((4, 4))[1] < 60     # 红
+    pet.set_state("eat", now=0.0)
+    eat = pet.frame_at(0.0).convert("RGB")
+    assert eat.getpixel((4, 4))[1] > 200 and eat.getpixel((4, 4))[0] < 60       # 绿
+    # 帧会随时间推进（8fps → 0.2s 后换一格）
+    assert pet.frame_at(0.2) is not None

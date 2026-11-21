@@ -1,0 +1,29 @@
+{
+  "name": "whale-girl-hd",
+  "display_name": "鲸鱼娘（精灵图版）",
+  "kind": "pet",
+  "api": 1,
+  "anchor": "bottom-left",
+  "margin": 16,
+  "scale": 1.9,
+  "spritesheet": {
+    "path": "spritesheet.webp",
+    "columns": 8,
+    "rows": 11
+  },
+  "states": {
+    "idle": { "row": 0, "frames": 8, "fps": 8.0, "loop": true },
+    "walk": { "row": 1, "frames": 8, "fps": 10.0, "loop": true },
+    "eat": { "row": 4, "frames": 5, "fps": 8.0, "loop": true },
+    "say": { "row": 6, "frames": 8, "fps": 8.0, "loop": true },
+    "click": { "row": 5, "frames": 8, "fps": 10.0, "loop": false },
+    "sleep": { "row": 8, "frames": 6, "fps": 3.0, "loop": true },
+    "shy": { "row": 10, "frames": 8, "fps": 6.0, "loop": true },
+    "stretch": { "row": 9, "frames": 8, "fps": 6.0, "loop": true }
+  },
+  "source": {
+    "author": "LINNoot / dsh-co-pet",
+    "repo": "https://github.com/LINNoot/dsh-co-pet",
+    "note": "精灵图 8 列 × 11 行（单帧 192×208），每行一个动作；由 PET 加载器按行取帧。"
+  }
+}

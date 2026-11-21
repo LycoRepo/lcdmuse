@@ -158,10 +158,33 @@ get_hub().register("myapp", lambda: {"queue": 12})   # 之后就是 myapp.queue
 
 ### 7.3 加一个桌宠
 
+两种素材格式，`pet.json` 里二选一：
+
+**A. 逐帧 PNG（自己抽帧）**
+
 1. `pets/<name>/pet.json` + `frames/*.png`（透明底，建议 ≤300×400），`api: 1`。
-2. 状态：`idle` 循环；`eat`/`click`/`say` 播完回 idle；`sleep` 保持。
+2. `states.<状态>.frames` 是文件列表，`fps` 控制节奏。
 3. `python tools/petify.py --gif a.gif --state eat --out pets/<name>` 抽帧。
-4. 素材必须可再分发（MIT/CC0），作者与许可写进 `pet.json` 的 `source`。
+
+**B. 一整张精灵图（推荐，帧多、动作顺）**
+
+```json
+{
+  "name": "whale-girl-hd", "kind": "pet", "api": 1,
+  "anchor": "bottom-left", "margin": 16, "scale": 1.9,
+  "spritesheet": { "path": "spritesheet.webp", "columns": 8, "rows": 11 },
+  "states": { "idle": { "row": 0, "frames": 8, "fps": 8 }, "walk": { "row": 1, "frames": 8, "fps": 10 } }
+}
+```
+
+- 每行一个动作，`row` 从 0 开始，`frames` 是这一行取几格（默认等于列数）。
+- 单帧尺寸 = 图宽/columns × 图高/rows，加载时按需求格、缓存裁剪结果。
+- `scale` 是放大倍数：192px 的格子投到 1480×720 上太小，`whale-girl-hd` 用 1.9。
+- 状态语义不变：`idle` 循环；`eat`/`click`/`say` 播完回 idle；`sleep` 保持。
+
+**通用**
+
+4. 素材必须可再分发（MIT/CC0 等），作者与许可写进 `pet.json` 的 `source`。
 5. 用户目录 `%APPDATA%\lcdmuse\pets\<id>\` 放同名桌宠会覆盖仓库里的。
 
 ## 8. 验收命令（改前改后都跑）
