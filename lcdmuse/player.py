@@ -166,10 +166,40 @@ class Player:
         driver = self._driver
         if info is None or driver is None:
             raise DeviceOffline("设备未打开")
-        image = self.composition(info.width, info.height).render((info.width, info.height))
+        image = self._render_sized(info.width, info.height)
         frame = Frame.from_image(image)
         self.last_image = image
+        tick = getattr(driver, "tick", None)
+        if callable(tick):                 # SAMA 这类要定时重发保活，别让屏自己睡过去
+            with contextlib.suppress(Exception):
+                tick(time.time())
         driver.push_frame(frame)
+
+    def _safe_area(self) -> tuple[int, int, int, int]:
+        """面板被外框挡住的边：驱动配置里的 safe_area = [左, 上, 右, 下]。
+
+        实测：先马水冷头右侧那条金属边压住约 30px，内容画进去就被吃了。
+        有它就把内容画在缩小后的画布上再居中贴回去，所有主题自动避让。
+        """
+        raw = (self.cfg.driver_config(self.plugin_id) or {}).get("safe_area")
+        if isinstance(raw, dict):
+            raw = [raw.get("left", 0), raw.get("top", 0), raw.get("right", 0), raw.get("bottom", 0)]
+        try:
+            left, top, right, bottom = (int(v) for v in (raw or [0, 0, 0, 0])[:4])
+        except (TypeError, ValueError):
+            return (0, 0, 0, 0)
+        return (max(0, left), max(0, top), max(0, right), max(0, bottom))
+
+    def _render_sized(self, width: int, height: int):
+        left, top, right, bottom = self._safe_area()
+        comp = self.composition(width, height)
+        if not any((left, top, right, bottom)):
+            return comp.render((width, height))
+        inner = (max(8, width - left - right), max(8, height - top - bottom))
+        from PIL import Image
+        canvas = Image.new("RGB", (width, height), (0, 0, 0))
+        canvas.paste(comp.render(inner), (left, top))
+        return canvas
 
     # ── 三层合成：底图 → 主题蒙版与数据 → 桌宠 ──────────────────────────
     def composition(self, width: int, height: int) -> Composition:
