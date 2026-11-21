@@ -58,6 +58,35 @@ lcdmuse render --plugin <id> --out out/screen.png
 
 面板做三件事：左栏选设备（名字可以自己改，见下）、中栏看这台屏的驱动/帧率/配置、右栏直接预览**驱动真实推出去的那一帧**以及最近 60 秒帧率曲线。暂停/桌宠/退出都在面板上。
 
+### 界面是可改的，三层分开
+
+| 层 | 位置 | 怎么改 |
+|---|---|---|
+| 界面 | `lcdmuse/web/`（`index.html` / `app.css` / `app.js`） | 直接改文件，**刷新页面就生效**，不用重启 |
+| 接口 | `lcdmuse/webui.py` 的 `/api/*` | 回 JSON/PNG，跟界面无关；想接自己的前端 / 手机页面就调这几个 |
+| 服务 | `lcdmuse/player.py`、`drivers/` 插件 | 推帧与设备，不关心谁在调它 |
+
+接口一览：
+
+| 方法 | 路径 | 作用 |
+|---|---|---|
+| GET | `/api/status` | 所有设备：plugin、自定义名、自报型号、分辨率、帧数、fps、暂停、错误 |
+| GET | `/api/preview?i=N` | 第 N 块屏当前那一帧（PNG） |
+| POST | `/api/select` | `{"index":0}` 切换当前设备 |
+| POST | `/api/pause` | `{"paused":true}` 或空对象=取反 |
+| POST | `/api/pet` | `{"enabled":false}` 或空对象=取反 |
+| POST | `/api/rename` | `{"index":0,"name":"机箱大屏"}` 写进 `device_names` |
+| POST | `/api/open` | `{"target":"plugins"\|"logs"}` |
+| POST | `/api/quit` | 释放设备并退出 |
+
+想整套换掉前端（自己的皮肤、自己的布局）：把 `index.html` / `app.css` / `app.js` 放一个目录，然后
+
+```bash
+LCDMUSE_WEB_DIR=D:/my-skin lcdmuse tray --plugin all --interval 1
+```
+
+后端、驱动、设备都不用动。
+
 **设备名可以自定义**：面板「重命名设备」按钮，或直接改 `lcdmuse.yaml`：
 
 ```yaml
