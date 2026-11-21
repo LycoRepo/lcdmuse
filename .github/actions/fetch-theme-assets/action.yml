@@ -41,5 +41,7 @@ runs:
           '/res/fonts/jetbrains-mono/'
         git fetch -q --depth 1 --filter=blob:none origin "${{ inputs.upstream-commit }}"
         git checkout -q FETCH_HEAD
-        cp -r res "${{ inputs.destination }}/"
-        du -sh "${{ inputs.destination }}/res"
+        # Resolve the destination before copying: a relative path would be relative to the checkout
+        destination=$(cd "${{ inputs.destination }}" && pwd)
+        cp -r res "$destination/"
+        du -sh "$destination/res"
