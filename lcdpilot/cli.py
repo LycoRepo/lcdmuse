@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """命令行入口：lcdpilot drivers list / render / probe / pets list。
 
 阶段 1 只到「契约 + 渲染 + 模拟驱动」，daemon / MCP 在阶段 5。

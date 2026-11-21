@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """阶段 1 的验收测试：契约、插件、渲染、桌宠、以及"核心零硬件"。"""
 from __future__ import annotations
 

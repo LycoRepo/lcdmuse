@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """画布：把「主题」画成一帧，再交给驱动。不含任何设备知识。
 
 原语来自旧 `lcd_comm.py` 的 8 个绘制方法，但从「推给设备」改成「画到整帧」。

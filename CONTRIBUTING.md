@@ -1,133 +1,47 @@
-<!-- omit in toc -->
-# Contributing to Turing Smart Screen Python project
+# 参与 lcdpilot
 
-First off, thanks for taking the time to contribute! ❤️
+先读 [`docs/AI-GUIDE.md`](docs/AI-GUIDE.md) —— 里面是硬规矩、契约和验收命令，比这份更细。
 
-All types of contributions are encouraged and valued. See the [Table of Contents](#table-of-contents) for different ways to help and details about how this project handles them. Please make sure to read the relevant section before making your contribution. It will make it a lot easier for us maintainers and smooth out the experience for all involved. The community looks forward to your contributions. 🎉
+## 最欢迎的几种贡献
 
-> And if you like the project, but just don't have time to contribute, that's fine. There are other easy ways to support the project and show your appreciation, which we would also be very happy about:
-> - Star the project
-> - Tweet about it
-> - Refer this project in your project's readme
-> - Mention the project at local meetups and tell your friends/colleagues
+- **加驱动**：`drivers/<id>/`，一个目录就是一个机型，核心不用改
+- **加桌宠**：`pets/<name>/`，素材必须可再分发
+- **主题**：`res/themes/<name>/`（主题目录不随本仓发布，可在自己仓库里发布后投稿）
+- **文档与翻译**：中文措辞、英文对照、踩坑记录
+- **缺陷报告**：能复现的最小步骤 + 平台版本
 
-<!-- omit in toc -->
-## Table of Contents
+## 硬门槛（不满足就不合）
 
-- [Code of Conduct](#code-of-conduct)
-- [I Have a Question](#i-have-a-question)
-- [I Want To Contribute](#i-want-to-contribute)
-  - [Reporting Bugs](#reporting-bugs)
-  - [Suggesting Enhancements](#suggesting-enhancements)
-  - [Your First Code Contribution](#your-first-code-contribution)
-  - [Improving The Documentation](#improving-the-documentation)
-- [Styleguides](#styleguides)
-  - [Commit Messages](#commit-messages)
-- [Join The Project Team](#join-the-project-team)
+1. `lcdpilot/` 里不得出现设备知识：VID/PID、型号名、命令字、协议魔数、波特率常量、串口名。
+2. `lcdpilot/` 不得 `import drivers.*`；只经 `lcdpilot/plugin.py` 动态加载。
+3. 界面与文案默认中文。
+4. 不依赖本机绝对路径、不依赖个人环境。
 
+改完自己跑一遍：
 
-## Code of Conduct
+```bash
+python -m lcdpilot.cli drivers list
+python -m lcdpilot.cli render --offline --pet whale-girl --out out/preview.png
+python -m pytest tests/test_stage1.py -q
+python -m ruff check lcdpilot drivers/*/driver.py tools/petify.py tools/pet_preview.py tests/test_stage1.py
+```
 
-This project and everyone participating in it is governed by the
-[Turing Smart Screen Python project Code of Conduct](https://github.com/mathoudebine/turing-smart-screen-pythonblob/master/CODE_OF_CONDUCT.md).
-By participating, you are expected to uphold this code. Please report unacceptable behavior.
+四条都过再提 PR。
 
+## 提 PR 的规矩
 
-## I Have a Question
+- 一事一 PR；大改动拆成能独立评审的几步。
+- 默认保持向后兼容；要破坏兼容先开 issue 说清楚。
+- 提交信息写「为什么」，PR 正文附**实际命令与输出**，不要写「应该可以」。
+- 新增 `.py` 保留文件头的 `SPDX-License-Identifier: GPL-3.0-or-later`。
+- 不动上游版权与许可文件（`LICENSE`、`AUTHORS`、`COPYRIGHT`）。
 
-> If you want to ask a question, we assume that you have read the available [Documentation](https://github.com/mathoudebine/turing-smart-screen-python/wiki).
+## 素材与第三方代码
 
-Before you ask a question, it is best to search for existing [Issues](https://github.com/mathoudebine/turing-smart-screen-python/issues) that might help you. In case you have found a suitable issue and still need clarification, you can write your question in this issue. It is also advisable to search the internet for answers first.  
-You can also search for similar questions in the [Discussion space](https://github.com/mathoudebine/turing-smart-screen-python/discussions/) and check the [Troubleshooting guide](https://github.com/mathoudebine/turing-smart-screen-python/wiki/Troubleshooting).  
-If you then still feel the need to ask a question and need clarification, we recommend the following:
+- 图片 / GIF / 字体：必须是 MIT、CC0、CC BY 之类**允许再分发**的许可，并在 `pet.json` 或主题文档里写明作者与出处。
+- **不接受** CC BY-NC（禁止商用）、未标注授权的网络图片、带水印的素材。
+- 抄别人的代码要写清来源与许可；GPL 代码只能以 GPL 兼容方式引入。
 
-- Open a [Discussion](https://github.com/mathoudebine/turing-smart-screen-python/discussions/new).
-- Provide as much context as you can about what you're running into.
-- Provide project and platform versions (Python, OS, etc), depending on what seems relevant.
+## 法律声明
 
-## I Want To Contribute
-
-> ### Legal Notice <!-- omit in toc -->
-> When contributing to this project, you must agree that you have authored 100% of the content, that you have the necessary rights to the content and that the content you contribute may be provided under the project license.
-
-### Reporting Bugs
-
-<!-- omit in toc -->
-#### Before Submitting a Bug Report
-
-A good bug report shouldn't leave others needing to chase you up for more information. Therefore, we ask you to investigate carefully, collect information and describe the issue in detail in your report. Please complete the following steps in advance to help us fix any potential bug as fast as possible.
-
-- Make sure that you are using the latest version.
-- Determine if your bug is really a bug and not an error on your side e.g. using incompatible environment components/versions (Make sure that you have read the [documentation](https://github.com/mathoudebine/turing-smart-screen-python/wiki). If you are looking for support, you might want to check [this section](#i-have-a-question)).
-- To see if other users have experienced (and potentially already solved) the same issue you are having, check if there is not already a bug report existing for your bug or error in the [bug tracker](https://github.com/mathoudebine/turing-smart-screen-pythonissues?q=label%3Abug).
-- You can also search for similar issues in the [Discussion space](https://github.com/mathoudebine/turing-smart-screen-python/discussions/) and check the [Troubleshooting guide](https://github.com/mathoudebine/turing-smart-screen-python/wiki/Troubleshooting)
-- Also make sure to search the internet (including Stack Overflow) to see if users outside of the GitHub community have discussed the issue.
-- Collect information about the bug:
-  - Stack trace (Traceback from console output)
-  - OS, Platform and Version (Windows, Linux, macOS, x86, ARM)
-  - Version of this project, Python interpreter.
-  - Can you reliably reproduce the issue? And can you also reproduce it with older versions?
-
-<!-- omit in toc -->
-#### How Do I Submit a Good Bug Report?
-
-We use GitHub issues to track bugs and errors. If you run into an issue with the project:
-
-- Open an [Bug report](https://github.com/mathoudebine/turing-smart-screen-python/issues/new).
-- Explain the behavior you would expect and the actual behavior.
-- Please provide as much context as possible and describe the *reproduction steps* that someone else can follow to recreate the issue on their own. This usually includes your code. For good bug reports you should isolate the problem and create a reduced test case.
-- Provide the information you collected in the previous section.
-
-Once it's filed:
-
-- A team member will try to reproduce the issue with your provided steps. If there are no reproduction steps or no obvious way to reproduce the issue, the team will ask you for those steps and the issue will not be addressed until they are reproduced.
-- If the team is able to reproduce the issue, it will be left to be [implemented by someone](#your-first-code-contribution).
-
-
-### Suggesting Enhancements
-
-This section guides you through submitting an enhancement suggestion for Turing Smart Screen Python project, **including completely new features and minor improvements to existing functionality**. Following these guidelines will help maintainers and the community to understand your suggestion and find related suggestions.
-
-<!-- omit in toc -->
-#### Before Submitting an Enhancement
-
-- Make sure that you are using the latest version.
-- Read the [documentation](https://github.com/mathoudebine/turing-smart-screen-python/wiki) carefully and find out if the functionality is already covered, maybe by an individual configuration.
-- Perform a [search](https://github.com/mathoudebine/turing-smart-screen-python/issues) to see if the enhancement has already been suggested. If it has, add a comment to the existing issue instead of opening a new one.
-- Find out whether your idea fits with the scope and aims of the project. It's up to you to make a strong case to convince the project's developers of the merits of this feature. Keep in mind that we want features that will be useful to the majority of our users and not just a small subset. If you're just targeting a minority of users, consider writing an add-on/plugin library.
-
-<!-- omit in toc -->
-#### How Do I Submit a Good Enhancement Suggestion?
-
-- Open an [Feature request](https://github.com/mathoudebine/turing-smart-screen-python/issues/new).
-- Use a **clear and descriptive title** for the issue to identify the suggestion.
-- Provide a **step-by-step description of the suggested enhancement** in as many details as possible.
-- **Describe the current behavior** and **explain which behavior you expected to see instead** and why. At this point you can also tell which alternatives do not work for you.
-- You may want to **include screenshots and animated GIFs** which help you demonstrate the steps or point out the part which the suggestion is related to. You can use [this tool](https://www.cockos.com/licecap/) to record GIFs on macOS and Windows, and [this tool](https://github.com/colinkeenan/silentcast) or [this tool](https://github.com/GNOME/byzanz) on Linux. <!-- this should only be included if the project has a GUI -->
-- **Explain why this enhancement would be useful** to most Turing Smart Screen Python project users. You may also want to point out the other projects that solved it better and which could serve as inspiration.
-
-
-### Your First Code Contribution
-<!-- TODO
-include Setup of env, IDE and typical getting started instructions?
-
--->
-
-### Improving The Documentation
-<!-- TODO
-Updating, improving and correcting the documentation
-
--->
-
-## Styleguides
-### Commit Messages
-<!-- TODO
-
--->
-
-## Join The Project Team
-<!-- TODO -->
-
-<!-- omit in toc -->
-## Attribution
-This guide is based on the **contributing-gen**. [Make your own](https://github.com/bttger/contributing-gen)!
+提交即表示：内容由你原创或你有权提交，并同意以 **GPL-3.0-or-later** 随本项目分发。

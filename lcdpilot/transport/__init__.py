@@ -1,1 +1,2 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """链路层：通用串口/HID 封装，不含设备标识与命令字。"""

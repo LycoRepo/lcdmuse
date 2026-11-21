@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Turing rev C（SoC 串口）（原厂驱动，移植成插件；默认不加载，用作契约回归）。
 
 实现方式：适配层——真正的协议实现仍在 `drivers/_legacy/library/`，

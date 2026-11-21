@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """示例驱动：不碰硬件，把收到的帧存盘。
 
 它就是"写一个驱动"的最小样板：实现 probe/open/push_frame，其余能力按需覆盖。

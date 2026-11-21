@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """颜色解析：主题 yaml 里的 "255, 255, 255" / "#fff" / [r,g,b] 统一成 RGB 元组。"""
 from __future__ import annotations
 

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """桌宠：一个可插拔的 PNG 帧包 + 一台小状态机。
 
 设计要点（DESIGN §5.1）：

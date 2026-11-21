@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """驱动注册表：枚举插件 → probe → 绑定设备。核心在这里与"具体硬件"完全解耦。"""
 from __future__ import annotations
 

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """配置与日志：路径全部相对仓库根，方便"拷走目录就能跑"。"""
 from __future__ import annotations
 

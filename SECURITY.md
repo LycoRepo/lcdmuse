@@ -1,11 +1,38 @@
-# Security Policy
+# 安全策略
 
-## Supported Versions
+## 支持范围
 
-Only the latest version is supported.
-Users are advised to update to the latest version when available.
+只维护最新版本（`main` 分支与最新 release）。旧版本发现问题请先升级再确认。
 
-## Reporting a Vulnerability
+## 报告漏洞
 
-Please report any vulnerabilities to this repository following this guide:  
-https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing/privately-reporting-a-security-vulnerability
+**不要开公开 issue。** 用 GitHub 的私密报告：
+
+仓库页 → **Security** → **Advisories** → **Report a vulnerability**
+
+请写清：受影响的版本/提交、复现步骤、实际影响（能读什么、能写什么、要不要本地权限）、你建议的修法（可选）。
+
+我们会在 7 天内给第一次回复；修好后再与你商量公开时间。
+
+## 本项目的安全模型
+
+- 本程序**不联网上传**任何数据。默认不发起任何外部请求。
+- 需要外部数据的只有可选的天气/主题下载功能；关闭即完全离线。
+- 运行它等于让它操作你的串口/HID 设备，因此**不要用管理员/root 跑**，除非驱动本身要求。
+- 驱动插件与主题是**可执行/可渲染的外部内容**：只装你信任来源的插件与主题。
+  加载第三方插件等同于运行第三方代码 —— 这是插件架构的固有代价，不是缺陷。
+- 主题里的图片路径不限制目录，恶意主题可以读到你有权限读的文件并画到屏上。
+
+## 不在范围内
+
+- 厂商自己的软件（如随屏附带的 Windows 程序）的漏洞 —— 请找厂商
+- 屏幕固件缺陷、硬件损坏
+- 第三方依赖（Pillow、pyserial、PyYAML 等）自身的漏洞 —— 请上游报，同时可告知我们以便升级
+- 需要物理接触设备、或已经拿到本机管理员权限后的攻击场景
+
+## 我们要避免的常见问题
+
+- 串口/HID 路径注入：驱动从配置取端口名，不要拼接成 shell 命令
+- 反序列化：只读 `yaml.safe_load`，不用 `pickle`/`eval`
+- 插件加载：只从 `drivers/` 目录按 `driver.yaml` 声明的 entry 加载，不扫整个文件系统
+- 日志：不要把设备序列号、UID、完整路径写进默认日志

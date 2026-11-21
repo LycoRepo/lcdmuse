@@ -1,142 +1,98 @@
-> **本仓库是 lcdpilot**：小尺寸 USB 副屏的显示管理内核，在 turing-smart-screen-python（GPL-3.0）基础上做的二次封装 ——
-> 驱动全部插件化、核心不含任何设备知识、界面中文化、附桌宠框架。
-> 面向 AI 代理的工作说明见 [`docs/AI-GUIDE.md`](docs/AI-GUIDE.md)；阶段状态见 [`docs/STAGE1-STATUS.md`](docs/STAGE1-STATUS.md)。
-> `res/`（字库与主题，约 1 GB）不在此仓库，取法见 docs/AI-GUIDE.md 第 11 节。
+# lcdpilot
 
-# ![Icon](https://raw.githubusercontent.com/mathoudebine/turing-smart-screen-python/main/res/icons/monitor-icon-17865/24.png) turing-smart-screen-python
+把小尺寸 USB 副屏（串口 CDC / USB HID）当第二块显示器用：采集系统指标 → 画进画布 → 推帧到屏。
+**核心零驱动，驱动全是插件**；界面中文；带桌宠。
 
-> [!WARNING]
-> 
-> This project is **not affiliated, associated, authorized, endorsed by, or in any way officially connected with Turing / XuanFang / Kipye brands**, or any of theirs subsidiaries, affiliates, manufacturers or sellers of their products. All product and company names are the registered trademarks of their original owners.
-> 
-> This project is an open-source alternative software, NOT the original software provided for the smart screens. **Please do not open issues for USBMonitor.exe/ExtendScreen.exe or for the smart screens hardware here**.
-> * for Turing Smart Screen, use the official forum here: http://discuz.turzx.com/
-> * for other smart screens, contact your reseller
+![Python](https://img.shields.io/badge/Python-3.10%2B-3670A0?style=flat-square&logo=python&logoColor=ffdd54)
+![Platform](https://img.shields.io/badge/Windows%20%7C%20Linux%20%7C%20macOS-lightgrey?style=flat-square)
+[![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue?style=flat-square)](./LICENSE)
 
-![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black) ![Windows](https://img.shields.io/badge/Windows%2010%2F11-0078D6?style=for-the-badge&logoColor=white&logo=data:image/svg%2bxml;base64,PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+V2luZG93czwvdGl0bGU+PHBhdGggZmlsbCA9ICIjRkZGRkZGIiBkPSJNMCwwSDExLjM3N1YxMS4zNzJIMFpNMTIuNjIzLDBIMjRWMTEuMzcySDEyLjYyM1pNMCwxMi42MjNIMTEuMzc3VjI0SDBabTEyLjYyMywwSDI0VjI0SDEyLjYyMyIvPjwvc3ZnPg==) [![macOS](https://img.shields.io/badge/mac%20os%20(⚠️major%20bug)-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/mathoudebine/turing-smart-screen-python/issues/7) ![Raspberry Pi](https://img.shields.io/badge/Raspberry%20Pi-A22846?style=for-the-badge&logo=Raspberry%20Pi&logoColor=white) ![Python](https://img.shields.io/badge/Python-3.X-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54) [![Licence](https://img.shields.io/github/license/mathoudebine/turing-smart-screen-python?style=for-the-badge)](./LICENSE)
-  
-A Python system monitor program and an abstraction library for **small IPS USB-C displays.**    
+> 本仓是 [turing-smart-screen-python](https://github.com/mathoudebine/turing-smart-screen-python)（GPL-3.0）的二次封装：
+> 驱动拆分插件化、核心剥离设备知识、界面中文化、新增桌宠框架。改动清单见 [`docs/MODIFICATIONS.md`](docs/MODIFICATIONS.md)。
+> 给 AI 代理与贡献者的工作约定见 [`docs/AI-GUIDE.md`](docs/AI-GUIDE.md)。
 
-Supported operating systems : macOS, Windows, Linux (incl. Raspberry Pi), basically all OS that support Python 3.9+  
+## 现在能用的
 
-### ✅ Supported smart screens models:
+| | 状态 |
+|---|---|
+| 驱动契约（`open` / `push_frame` / 能力声明 / 错误码） | 可用 |
+| 插件系统（扫目录、校验 api 版本与依赖、按需加载） | 可用 |
+| 画布原语（矩形、圆、文字、图片、脏矩形 diff、透明合成） | 可用 |
+| 桌宠框架（`pet.json` + 状态机 + 锚点合成） | 可用 |
+| 命令行（`drivers list` / `probe` / `render` / `pets list`） | 可用 |
+| 离线渲染（无硬件出图，用于开发与测试） | 可用 |
+| 原厂驱动适配层（7 个上游机型） | 默认不加载，未在真实硬件上验证 |
+| 主题引擎接 `res/themes` | 未接（现在只有测试卡） |
+| `lcdpilot-daemon` + `lcdpilot-mcp`（给别的程序调用） | 未开工 |
 
-| ✅ Turing Smart Screen / TURZX                                                                                                                                                                                                                                                                                                                                                                  |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| <img src="res/docs/turing.webp" width="30%" height="30%"/> <img src="res/docs/turing46inch.png" width="30%" height="30%"/> <img src="res/docs/turing5inch.png" width="30%" height="30%"/> <br/> <img src="res/docs/turing2inch.webp" width="30%" height="30%"/> <img src="res/docs/turing8inch.png" width="30%" height="30%"/> <img src="res/docs/turing8inch.webp" width="30%" height="30%"/> |
-| All available sizes and hardware revisions supported: **2.1" / 2.8" / 3.5" / 4.6" / 5" / 5.2" / 8.0" / 8.8" / 9.2" / 12.3"** <br/>UART and USB protocols supported. Note: no video or storage support for now                                                                                                                                                                                  |
+## 快速开始
 
-| ✅ XuanFang 3.5"                                   | ✅ [UsbPCMonitor 3.5" / 5"](https://aliexpress.com/item/1005003931363455.html)                       | ✅ Kipye Qiye Smart Display 3.5"                                                  |
-|---------------------------------------------------|-----------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
-| <img src="res/docs/xuanfang.webp"/>               | <img src="res/docs/UsbPCMonitor_5inch.webp" width="60%" height="60%"/>                              | <img src="res/docs/kipye-qiye-35.webp" width="60%" height="60%"/>                |
-| revision B & flagship (with backplate & RGB LEDs) | Unknown manufacturer, visually similar to Turing 3.5" / 5". Original software is `UsbPCMonitor.exe` | Front panel has an engraved inscription "奇叶智显" Qiye Zhixian (Qiye Smart Display) |
+```bash
+git clone https://github.com/LycoRepo/lcdpilot.git
+cd lcdpilot
+pip install -e ".[dev]"
+```
 
-| ✅ WeAct Studio Display FS V1 0.96"                            | ✅ WeAct Studio Display FS V1 3.5"                            |
-|---------------------------------------------------------------|--------------------------------------------------------------|
-| <img src="res/docs/weact_0.96.jpg" width="60%" height="60%"/> | <img src="res/docs/weact_3.5.png" width="60%" height="60%"/> |
+没接屏幕也能跑：
 
-<details>
+```bash
+python -m lcdpilot.cli drivers list                       # 插件表
+python -m lcdpilot.cli probe                              # 探测设备（默认只探启用的插件）
+python -m lcdpilot.cli render --offline --pet whale-girl --out out/preview.png
+python -m lcdpilot.cli pets list
+```
 
-<summary><h3>❌ Not (yet) supported / not tested smart screen models</h3></summary>
+`--offline` 走内置的 `simulated` 驱动，不碰任何硬件。
 
-| ❔ _AIDA64 / AX206 / USB2LCD..._                                                                                                                                                                        | ❔ _[ACEMAGIC S1 Mini PC - integrated 1,9″ display](https://acemagic.com/products/acemagic-s1-12th-alder-laker-n95-mini-pc)_                                  |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| <img src="res/docs/ax206.jpg" width="45%" height="45%" /> <img src="res/docs/geekteches_ad35.jpg" width="45%" height="45%" /> <br/> <img src="res/docs/smartcool_lcd.webp" width="45%" height="45%" /> | <img src="res/docs/acemagic-s1-mini.jpg"/>                                                                                                                   |
-| Not supported for now. Produced by multiple manufacturers, all use the same [Appotech AX206 hacked photo frame firmware](https://github.com/dreamlayers/dpf-ax). Supported by AIDA64 and lcd4linux     | Not supported for now but could be integrated: protocol has been decoded, [see here](https://github.com/mathoudebine/turing-smart-screen-python/issues/677). |
+## 目录
 
-| ❔ _NXElec BeadaPanel 3/4/5/6/7_                                                                                                                                                                                                                                                                                           |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| <img src="res/docs/beadapanel-3.jpg" width="30%" height="30%" /> <img src="res/docs/beadapanel-5s.jpg" width="30%" height="30%" /> <img src="res/docs/beadapanel-6.jpg" width="30%" height="30%" />                                                                                                                       |
-| Not supported for now but could be integrated: [Pankel-Link V1.0 Protocol Specification](https://www.nxelec.com/documents/bp/Panel-Link_USB_Media_Stream_Transport_Protocol_Rev10.pdf) / [Status-Link V1.1 Protocol Specification](https://www.nxelec.com/documents/bp/Status-Link_USB_Panel_Control_Protocol_Rev11.pdf). |
+```
+lcdpilot/          核心：契约、插件加载、注册表、渲染、链路、桌宠、CLI
+drivers/<id>/      驱动插件（driver.yaml + driver.py），simulated 是样板
+pets/<name>/       桌宠（pet.json + frames/*.png）
+tools/             GIF 抽帧、预览合成
+tests/             契约 / 插件 / 桌宠 / 「核心零设备知识」断言
+docs/              AI-GUIDE（工作约定）、阶段状态、改动清单
+library/           上游旧实现，仍在过渡期，勿加新代码
+```
 
-| ❌ _Waveshare [2.1inch](https://www.waveshare.com/wiki/2.1inch-USB-Monitor) / [2.8inch](https://www.waveshare.com/wiki/2.8inch-USB-Monitor) / [5inch](https://www.waveshare.com/wiki/5inch-USB-Monitor) / [7inch](https://www.waveshare.com/wiki/7inch-USB-Monitor) USB-Monitor_                                                                                                            | ❌ _[GUITION Smart screen 3.5"](https://aliexpress.com/item/1005006169962183.html)_                                                                                                                                                                                                          |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| <img src="res/docs/waveshare-21inch-28inch.png"/>                                                                                                                                                                                                                                                                                                                                          | <img src="res/docs/guition.webp"/>                                                                                                                                                                                                                                                          |
-| Sold on [Waveshare shop](https://www.waveshare.com/2.8inch-usb-monitor.htm) or [Aliexpress](https://fr.aliexpress.com/item/1005006071685067.html). Managed by [proprietary Windows software "Waveshare PC Monitor"](https://github.com/mathoudebine/turing-smart-screen-python/wiki/Vendor-apps#waveshare-pc-monitor---vendor-app). Cannot be supported by this project: needs a firmware. | Managed by [proprietary Windows software "GUITION Smart screen"](https://github.com/mathoudebine/turing-smart-screen-python/wiki/Vendor-apps#guition---vendor-app). Cannot be supported by this project: [see here](https://github.com/mathoudebine/turing-smart-screen-python/issues/426). |
+## 加驱动
 
-| ❌ _[(Fuldho?) 3.5" IPS Screen](https://aliexpress.com/item/1005005632018367.html)_                                                                                                                                                     |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| <img src="res/docs/fuldho_3.5.jpg" width="40%" height="40%" />                                                                                                                                                                         |
-| Managed by [proprietary Windows software `SmartMonitor.exe`](https://smartdisplay.lanzouo.com/b04jvavkb). Cannot be supported by this project: [see here](https://github.com/mathoudebine/turing-smart-screen-python/discussions/298). |
+驱动就是往 `drivers/` 加一个目录，核心不用改：
 
-</details>
+1. `drivers/<id>/driver.yaml`：`api: 1`、`entry`、`requires`（写 import 名，如 `serial`）
+2. `driver.py` 继承 `lcdpilot.lcd_comm.LcdComm`，实现 `probe / open / close / push_frame`
+3. `python -m lcdpilot.cli drivers list` 看到 `available: true` 就成了
 
-### [> What is my smart screen model?](https://github.com/mathoudebine/turing-smart-screen-python/wiki/Hardware-revisions)  
+细节与验收标准见 [`docs/AI-GUIDE.md`](docs/AI-GUIDE.md) 第 6、8 节。
 
-**Please note all listed smart screens are different products** designed and produced by different companies, despite having a similar appearance. Their communication protocol is also different.  
-This project offers an abstraction layer to manage all of these products in a unified way, including some product-specific features like backplate RGB LEDs for available models!
+## 桌宠
 
-If you haven't received your screen yet but want to start developing your theme now, you can use the [**"simulated LCD" mode!**](https://github.com/mathoudebine/turing-smart-screen-python/wiki/Simulated-display)
+默认款是 `whale-girl`（5 个状态 × 8 帧，透明底，≤300×400）。
+可以关：`--pet none`、配置里 `pet_enabled: false`。
+自己做一套：`python tools/petify.py --gif a.gif --state eat --out pets/my-pet`。
+素材必须可再分发，并在 `pet.json` 的 `source` 里写清作者与许可。
 
-## How to start
+## 与上游的关系
 
-### [> Follow instructions on the wiki to configure and start this project.](https://github.com/mathoudebine/turing-smart-screen-python/wiki)
+本仓是 GPL-3.0 衍生作品：上游的 `LICENSE`、`AUTHORS`、`COPYRIGHT` 原样保留，
+被我们改动或新增的文件列在 [`docs/MODIFICATIONS.md`](docs/MODIFICATIONS.md)。
+上游的驱动实现仍以 `library/`（及适配层 `drivers/_legacy/`）的形式存在，供 7 个原厂机型使用；
+过渡期结束后会删除，届时只剩 `lcdpilot/` + `drivers/`。
 
-There are 2 possible uses of this project Python code:
-* **[as a System Monitor](#system-monitor)**, a standalone program working with themes to display your computer HW info and custom data in an elegant way.
-[Check if your hardware is supported.](https://github.com/mathoudebine/turing-smart-screen-python/wiki/System-monitor-:-hardware-support)
-* **[integrated in your project](#control-the-display-from-your-python-projects)**, to fully control the display from your own Python code.
+上游文档（机型差异、主题格式、故障排查）仍然有效，见
+[turing-smart-screen-python wiki](https://github.com/mathoudebine/turing-smart-screen-python/wiki)。
 
-## System monitor
+## 许可
 
-This project is mainly a complete standalone program to use your screen as a system monitor, like the original vendor app.  
-Some themes are already included for a quick start!  
-### [> Configure and start system monitor](https://github.com/mathoudebine/turing-smart-screen-python/wiki/System-monitor-:-how-to-start)
-<img src="res/docs/config_wizard.png"/>  
+**GPL-3.0-or-later**，见 [`LICENSE`](./LICENSE)。
+你可以使用、修改、再分发、收费分发本软件；分发的成品必须同样以 GPL-3.0 提供完整源码，
+并保留上游版权声明与许可文本。
 
-* Fully functional multi-OS code base (operates out of the box, tested on Windows, Linux & MacOS).
-* Display configuration using GUI configuration wizard or `config.yaml` file: no Python code to edit.
-* Compatible with [multiple smart screen models (Turing, XuanFang...)](https://github.com/mathoudebine/turing-smart-screen-python/wiki/Hardware-revisions). Backplate RGB LEDs are also supported for available models!
-* Support [multiple hardware sensors and metrics (CPU/GPU usage, temperatures, memory, disks, etc)](https://github.com/mathoudebine/turing-smart-screen-python/wiki/System-monitor-:-themes#stats-entry) with configurable refresh intervals.
-* Allow [creation of themes (see `res/themes`) with `theme.yaml` files using theme editor](https://github.com/mathoudebine/turing-smart-screen-python/wiki/System-monitor-:-themes) to be [shared with the community!](https://github.com/mathoudebine/turing-smart-screen-python/discussions/categories/themes)
-* Easy to expand: [custom Python data sources](https://github.com/mathoudebine/turing-smart-screen-python/wiki/System-monitor-:-themes#add-custom-stats-to-a-theme) can be written to pull specific information and display it on themes like any other sensor.
-* Auto-detect COM port based on the selected smart screen model.
-* Tray icon with Exit option, useful when the program is running in background.
+本软件是第三方开源实现，与任何屏幕厂商（Turing / XuanFang / Kipye / WeAct 等）无关，
+不代表、也不受其授权；产品与公司名称归各自所有者。硬件本身的售后问题请找卖家。
 
-### [> List and preview of included themes](res/themes/themes.md)
-<img src="res/themes/3.5inchTheme2/preview.png" height="150" /> <img src="res/themes/Terminal/preview.png" height="150" /> <img src="res/themes/Cyberpunk-net/preview.png" height="150" /> <img src="res/themes/bash-dark-green-gpu/preview.png" height="150" /> <img src="res/themes/Landscape6Grid/preview.png" width="150" /> <img src="res/themes/LandscapeMagicBlue/preview.png" width="150" /> <img src="res/themes/LandscapeEarth/preview.png" width="150" /> ... [view full list](res/themes/themes.md)
-### [> Themes creation/edition (using theme editor)](https://github.com/mathoudebine/turing-smart-screen-python/wiki/System-monitor-:-themes)
-### [> Themes shared by the community](https://github.com/mathoudebine/turing-smart-screen-python/discussions/categories/themes)
-<img src="https://user-images.githubusercontent.com/79225820/203648707-6f043068-5c9d-454d-9c0a-3d9ea02ece77.jpg" height="150" /> <img src="https://user-images.githubusercontent.com/121983479/210663324-994c987a-6489-4482-8883-db74ef566014.jpg" height="150" />
-<img src="https://user-images.githubusercontent.com/120036534/208128675-897f60cd-5647-40b7-b074-b56b67e775dd.png" height="150" /> <img src="https://user-images.githubusercontent.com/65172896/217549510-149913ac-ef4e-4f61-8f5e-6d768483a02c.png" height="150" /> and more... Share yours!
+## 致谢
 
-## Control the display from your Python projects
-
-If you don't want to use your screen for system monitoring, you can just use this project as a module from any Python code to do some simple operations on the display:
-- **Display custom picture**
-- **Display text**
-- **Display horizontal / radial progress bar**
-- **Screen rotation**
-- Clear the screen (blank)
-- Turn the screen on/off
-- Display soft reset
-- Set brightness
-- Set backplate RGB LEDs color (on supported hardware rev.) 
-
-This project will act as an abstraction library to handle specific protocols and capabilities of each supported smart screen models in a transparent way for the user.
-Check `simple-program.py` as an example.
-
-### [> Control the display from your code](https://github.com/mathoudebine/turing-smart-screen-python/wiki/Control-screen-from-your-own-code)
-
-## Troubleshooting
-If you have trouble running the program as described in the wiki, please check [open/closed issues](https://github.com/mathoudebine/turing-smart-screen-python/issues) & [the wiki Troubleshooting page](https://github.com/mathoudebine/turing-smart-screen-python/wiki/Troubleshooting)
-
-## They're talking about it!
-
-* [Hackaday - Cheap LCD Uses USB Serial](https://hackaday.com/2023/09/11/cheap-lcd-uses-usb-serial/)  
-
-
-* [CNX Software - Turing Smart Screen – A low-cost 3.5-inch USB Type-C information display](https://www.cnx-software.com/2022/04/29/turing-smart-screen-a-low-cost-3-5-inch-usb-type-c-information-display/)
-
-
-* [Phazer Tech - Turing Smart Screen Python ](https://phazertech.com/tutorials/turing-smart-screen.html)
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=mathoudebine%2Fturing-smart-screen-python&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=mathoudebine/turing-smart-screen-python&type=date&theme=dark&legend=top-left&sealed_token=1BULWtfZBsenXy6zd-C2Td6C9UGczg0IYaXK8qrDQy2yhkZvBSdB0kZ5ufjXAD_6CCCaT_VYzmD5XqpPAQwYhe0tlrxJfnRax70YliRnMnqqW2FjVnNEEw9yqhXZir4mhQsrMy4JyyiCdP_BT2yKw8GeVlIcxfxqo6MRk7v0-w-nVPm6bexDVxyG-KPC" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=mathoudebine/turing-smart-screen-python&type=date&legend=top-left&sealed_token=1BULWtfZBsenXy6zd-C2Td6C9UGczg0IYaXK8qrDQy2yhkZvBSdB0kZ5ufjXAD_6CCCaT_VYzmD5XqpPAQwYhe0tlrxJfnRax70YliRnMnqqW2FjVnNEEw9yqhXZir4mhQsrMy4JyyiCdP_BT2yKw8GeVlIcxfxqo6MRk7v0-w-nVPm6bexDVxyG-KPC" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=mathoudebine/turing-smart-screen-python&type=date&legend=top-left&sealed_token=1BULWtfZBsenXy6zd-C2Td6C9UGczg0IYaXK8qrDQy2yhkZvBSdB0kZ5ufjXAD_6CCCaT_VYzmD5XqpPAQwYhe0tlrxJfnRax70YliRnMnqqW2FjVnNEEw9yqhXZir4mhQsrMy4JyyiCdP_BT2yKw8GeVlIcxfxqo6MRk7v0-w-nVPm6bexDVxyG-KPC" />
- </picture>
-</a>
+- [mathoudebine/turing-smart-screen-python](https://github.com/mathoudebine/turing-smart-screen-python)：契约、渲染、调度、主题格式均源自该项目
+- 桌宠素材来自公开可再分发的美术资源，具体作者与许可见各自的 `pets/<name>/pet.json`

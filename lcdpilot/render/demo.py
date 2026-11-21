@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """临时主题：给驱动/渲染链路做离线验证用（阶段 2 换成 res/themes 的真主题引擎）。"""
 from __future__ import annotations
 
