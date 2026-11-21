@@ -105,3 +105,5 @@ footer b{color:var(--ink);font-weight:500}
 
 .mbody .opt.install{border-style:dashed;border-color:rgba(63,191,224,.35);margin-top:6px}
 .mbody .opt.install b{color:#7fd8f0}
+
+.mbody .hint{padding:8px 12px 2px;font-size:11px;color:var(--muted,#8798ab);word-break:break-all}
