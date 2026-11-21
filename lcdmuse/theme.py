@@ -82,6 +82,7 @@ class Theme:
     source: dict[str, Any] = field(default_factory=dict)
     _media: MediaSource | None = None
     _mask: Image.Image | None = None
+    _mask_cache: dict[tuple[int, int], Image.Image] = field(default_factory=dict)
     _hook: Any = None
 
     # ── 加载 ────────────────────────────────────────────────────────────
@@ -179,7 +180,13 @@ class Theme:
             opacity = float(self.background.get("mask_opacity",
                                                (self.background.get("mask") or {}).get("opacity", 1.0))
                             if isinstance(self.background.get("mask"), dict) else 1.0)
-            mask = fit_image(self._mask, size, "stretch") if self._mask.size != size else self._mask
+            mask = self._mask
+            if mask.size != size:            # 缩放一次就缓存，别每帧重算（1480×720 上这是最大开销）
+                cached = self._mask_cache.get(size)
+                if cached is None:
+                    cached = fit_image(self._mask, size, "stretch")
+                    self._mask_cache[size] = cached
+                mask = cached
             if mask.mode != "RGBA":
                 mask = mask.convert("RGBA")
             if opacity < 1.0:
