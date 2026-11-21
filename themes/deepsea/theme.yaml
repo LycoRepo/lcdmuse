@@ -17,9 +17,9 @@ overlay:
   - text: {text: "LCDMUSE", at: [40, 34], size: 20, bold: true, color: "#dff2fb"}
   - text: {text: "深海月光", at: [40, 62], size: 12, color: "#a8cbdd"}
 
-  - text: {metric: "time.now", at: [44, 300], size: 72, bold: true, color: "#eaf7ff"}
-  - text: {metric: "date.today", at: [48, 384], size: 14, color: "#8fbcd6"}
-  - text: {metric: "date.weekday", at: [150, 388], size: 12, color: "#8fb2c7", cn: true}
+  - text: {metric: "time.now", at: [40, 246], size: 66, bold: true, color: "#eaf7ff"}
+  - text: {metric: "date.today", at: [44, 328], size: 13, color: "#a8cbdd"}
+  - text: {metric: "date.weekday", at: [146, 328], size: 12, color: "#8fb2c7", cn: true}
 
   - text: {text: "CPU", at: [44, 416], size: 12, color: "#a8cbdd"}
   - text: {metric: "cpu.percent", at: [200, 414], size: 13, color: "#7fe3ff", unit: "%",
