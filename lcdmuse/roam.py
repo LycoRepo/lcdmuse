@@ -45,14 +45,14 @@ ACTIVITY: dict[str, tuple[str, str]] = {
     "thinking": ("think", "嗯……让我想想"),
     "working": ("work", "干活中，别催"),
     "running": ("work", "干活中，别催"),
-    "waiting": ("say", "等你确认一下"),
-    "review": ("say", "我看看你改的"),
-    "success": ("say", "搞定啦"),
-    "done": ("say", "搞定啦"),
-    "error": ("click", "哎？出错了"),
-    "welcome": ("say", "回来了呀"),
-    "joy": ("say", "嘿嘿"),
-    "play": ("say", "来玩会儿"),
+    "waiting": ("wait", "等你确认一下"),
+    "review": ("tidy", "我看看你改的"),
+    "success": ("success", "搞定啦"),
+    "done": ("success", "搞定啦"),
+    "error": ("error", "哎？出错了"),
+    "welcome": ("wave", "回来了呀"),
+    "joy": ("success", "嘿嘿"),
+    "play": ("sing", "来玩会儿"),
     "hungry": ("eat", "我饿"),
     "sleepy": ("sleep", "困了……"),
 }
@@ -202,10 +202,13 @@ class RoamingPet:
         """把行为名映射到素材里真实存在的状态，没有就退回 idle。"""
         states = self.pet.states
         alias = {
-            "sit": ("sit", "shy", "sleep"),
-            "think": ("think", "say", "idle"),
-            "work": ("work", "stretch", "say", "idle"),
-            "say": ("say", "talk", "idle"),
+            "sit": ("sit", "yawn", "idle"),
+            "think": ("think", "idle"),
+            "work": ("work", "tidy", "idle"),
+            "say": ("wave", "sing", "idle"),
+            "click": ("success", "wave", "idle"),
+            "wait": ("wait", "look", "idle"),
+            "nap": ("sleep", "idle"),
         }
         for name in alias.get(wanted, (wanted,)):
             if name in states:

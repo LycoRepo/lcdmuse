@@ -1,0 +1,159 @@
+{
+  "name": "whale-girl-webm",
+  "display_name": "鲸鱼娘（dsh-pet 动画包）",
+  "kind": "pet",
+  "api": 1,
+  "anchor": "bottom-left",
+  "margin": 12,
+  "fit_height": 0.55,
+  "micro_motion": false,
+  "facing": "left",
+  "states": {
+    "idle": {
+      "sheet": "idle.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": true
+    },
+    "look": {
+      "sheet": "look.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": true
+    },
+    "walk": {
+      "sheet": "walk.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": true
+    },
+    "float": {
+      "sheet": "float.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": true
+    },
+    "run": {
+      "sheet": "run.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": true
+    },
+    "stretch": {
+      "sheet": "stretch.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": false
+    },
+    "yawn": {
+      "sheet": "yawn.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": false
+    },
+    "sing": {
+      "sheet": "sing.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": true
+    },
+    "eat": {
+      "sheet": "eat.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": true
+    },
+    "snack": {
+      "sheet": "snack.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": true
+    },
+    "think": {
+      "sheet": "think.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": true
+    },
+    "work": {
+      "sheet": "work.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": true
+    },
+    "tidy": {
+      "sheet": "tidy.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": true
+    },
+    "wait": {
+      "sheet": "wait.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": true
+    },
+    "success": {
+      "sheet": "success.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": false
+    },
+    "error": {
+      "sheet": "error.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": true
+    },
+    "sleep_in": {
+      "sheet": "sleep_in.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": false
+    },
+    "sleep": {
+      "sheet": "sleep.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": true
+    },
+    "wake": {
+      "sheet": "wake.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": false
+    },
+    "wave": {
+      "sheet": "wave.webp",
+      "columns": 12,
+      "frames": 12,
+      "fps": 5.0,
+      "loop": false
+    }
+  },
+  "source": {
+    "author": "PC2005-cloud/dsh-pet",
+    "repo": "https://github.com/PC2005-cloud/dsh-pet",
+    "license": "MIT",
+    "note": "webm 动作抽帧 + 黑底泛洪抠像 + 统一裁框；每行一个动作，见 docs/THIRD-PARTY.md"
+  }
+}
