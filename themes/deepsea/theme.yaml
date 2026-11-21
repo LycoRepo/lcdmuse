@@ -15,7 +15,7 @@ background:
 
 overlay:
   - text: {text: "LCDMUSE", at: [40, 34], size: 20, bold: true, color: "#dff2fb"}
-  - text: {text: "深海月光", at: [40, 62], size: 12, color: "#a8cbdd"}
+  - text: {text: "深海月光", at: [40, 62], size: 12, color: "#bcd9e8"}
 
   - text: {metric: "time.now", at: [40, 246], size: 66, bold: true, color: "#eaf7ff"}
   - text: {metric: "date.today", at: [44, 328], size: 13, color: "#a8cbdd"}
@@ -31,4 +31,4 @@ overlay:
            decimals: 0, anchor: "ra"}
   - bar:  {metric: "mem.percent", box: [214, 445, 128, 5], color: "#4fd7a2", track: "#12283a"}
 
-  - text: {text: "深入 3,200 m", at: [886, 448], size: 11, color: "#4e7691", anchor: "ra"}
+  - text: {text: "下潜 3,200 m", at: [886, 448], size: 12, color: "#6e94ab", anchor: "ra"}
