@@ -1,0 +1,13 @@
+id: turzx_usb
+name: TURZX / Turing USB（1CBE）
+version: 0.1.0
+api: 1
+entry: driver:TurzxUsbDriver
+platforms: [windows, linux]
+requires: [usb, Crypto]
+enabled_by_default: false
+description: raw USB bulk，DES 加密命令
+settings_schema:
+  port: {type: str, default: "AUTO", label: 串口}
+  width: {type: int, default: 320, label: 宽}
+  height: {type: int, default: 480, label: 高}

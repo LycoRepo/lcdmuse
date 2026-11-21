@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lcdkit"
+version = "0.1.0"
+description = "副屏管理核心：零驱动、插件式、中文界面（lcd-studio 的内核）"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-or-later" }
+dependencies = ["Pillow>=10", "PyYAML>=6", "psutil>=5.9", "pyserial>=3.5"]
+
+[project.optional-dependencies]
+drivers = ["numpy", "pyusb", "pycryptodome"]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+lcd-studio = "lcdkit.cli:main"
+
+[tool.setuptools]
+packages = ["lcdkit", "lcdkit.render", "lcdkit.transport"]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["drivers/_legacy", "tests/library", "res", "themes"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP", "SIM", "RET"]
+ignore = ["E501", "B027"]

@@ -1,0 +1,19 @@
+{
+  "name": "_template",
+  "display_name": "我的桌宠",
+  "anchor": "bottom-left",
+  "margin": 16,
+  "source": {
+    "author": "你自己",
+    "license": "自己填"
+  },
+  "states": {
+    "idle": {
+      "frames": [
+        "frames/idle_00.png"
+      ],
+      "fps": 3,
+      "loop": true
+    }
+  }
+}
