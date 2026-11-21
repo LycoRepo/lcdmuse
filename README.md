@@ -1,112 +1,156 @@
 # lcdmuse
 
-把小尺寸 USB 副屏（串口 CDC / USB HID）当第二块显示器用：采集系统指标 → 画进画布 → 推帧到屏。
-**核心零驱动，驱动全是插件**；界面中文；带桌宠。
+把机箱里那块小 USB 屏（串口 / HID）变成第二块屏：显示系统状态、养一只桌宠、也可以让脚本或 AI 直接推画面。
+
+![lcdmuse 预览](docs/images/preview.png)
+
+*上图是 `lcdmuse render --offline` 的真实输出（960×480，无硬件）。左边是桌宠，右边是数据条，底部色条用来检查颜色对不对。*
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3670A0?style=flat-square&logo=python&logoColor=ffdd54)
 ![Platform](https://img.shields.io/badge/Windows%20%7C%20Linux%20%7C%20macOS-lightgrey?style=flat-square)
 [![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue?style=flat-square)](./LICENSE)
+![Tests](https://img.shields.io/badge/tests-21%20passed-brightgreen?style=flat-square)
 
-> 本仓是 [turing-smart-screen-python](https://github.com/mathoudebine/turing-smart-screen-python)（GPL-3.0）的二次封装：
-> 驱动拆分插件化、核心剥离设备知识、界面中文化、新增桌宠框架。改动清单见 [`docs/MODIFICATIONS.md`](docs/MODIFICATIONS.md)。
-> 给 AI 代理与贡献者的工作约定见 [`docs/AI-GUIDE.md`](docs/AI-GUIDE.md)。
+## 为什么还要再造一个
 
-## 现在能用的
+现成的副屏软件大致三类，各有各的坑：
 
-| | 状态 |
-|---|---|
-| 驱动契约（`open` / `push_frame` / 能力声明 / 错误码） | 可用 |
-| 插件系统（扫目录、校验 api 版本与依赖、按需加载） | 可用 |
-| 画布原语（矩形、圆、文字、图片、脏矩形 diff、透明合成） | 可用 |
-| 桌宠框架（`pet.json` + 状态机 + 锚点合成） | 可用 |
-| 命令行（`drivers list` / `probe` / `render` / `pets list`） | 可用 |
-| 离线渲染（无硬件出图，用于开发与测试） | 可用 |
-| 原厂驱动适配层（7 个上游机型） | 默认不加载，未在真实硬件上验证 |
-| 主题引擎接 `res/themes` | 未接（现在只有测试卡） |
-| `lcdmuse-daemon` + `lcdmuse-mcp`（给别的程序调用） | 未开工 |
+- **厂商软件**（先马 SAMA、爱国者 AIGO 这类）：界面停在五年前，不能脚本化，只认自家屏，还常驻后台每 5 秒扫一遍硬件。
+- **上游开源项目**（[turing-smart-screen-python](https://github.com/mathoudebine/turing-smart-screen-python)）：功能很全，但 8 个机型的驱动被写死在核心里 —— 加一块新屏就得改核心代码。
+- **灯效软件**（OpenRGB 等）：只管 RGB，不管屏。
 
-## 快速开始
+lcdmuse 的做法：**核心只认契约，不认硬件**。屏幕是谁家的、什么协议、多少波特率，全在插件里。
+
+## 三种用法
+
+| 用法 | 说明 | 状态 |
+|---|---|---|
+| **系统监控** | CPU / GPU / 内存 / 磁盘 / 网络画成一张主题图，定时推到屏上 | 渲染与调度已就绪，主题引擎还在接（现在是测试卡） |
+| **桌宠** | 一个会呼吸、会吃、会被戳的 Q 版角色，**画在副屏上**，不是 Windows 桌面挂件 | 可用，5 个状态 |
+| **AI 接管** | 通过 MCP 让 DSH / Claude 之类的代理调用 `show_image` / `push_frame` / `pet_set` | 未开工（`lcdmuse-daemon` + `lcdmuse-mcp`） |
+
+> 关于桌宠：它渲染在**机箱副屏那块屏上**，和主题共用一张画布、同一帧通路 —— 主题先画整幅，再按锚点把桌宠贴上去。所以关掉桌宠，屏幕就回到普通主题，两者不是互斥的两套模式。它也不是 Windows 桌面上的宠物挂件。
+
+## 快速开始（不用接屏）
 
 ```bash
 git clone https://github.com/LycoRepo/lcdmuse.git
 cd lcdmuse
 pip install -e ".[dev]"
+
+lcdmuse drivers list        # 插件表
+lcdmuse render --offline --pet whale-girl --out out/preview.png
 ```
 
-没接屏幕也能跑：
+第三条命令走内置的 `simulated` 驱动，**一根线都不用插**，直接出上面那张图。
+
+接上真屏之后：
 
 ```bash
-python -m lcdmuse.cli drivers list                       # 插件表
-python -m lcdmuse.cli probe                              # 探测设备（默认只探启用的插件）
-python -m lcdmuse.cli render --offline --pet whale-girl --out out/preview.png
-python -m lcdmuse.cli pets list
+lcdmuse probe               # 探测当前接的设备
+lcdmuse drivers list        # 看哪个插件认领了它
+lcdmuse render --plugin <id> --out out/screen.png
 ```
-
-`--offline` 走内置的 `simulated` 驱动，不碰任何硬件。
-
-## 目录
-
-```
-lcdmuse/          核心：契约、插件加载、注册表、渲染、链路、桌宠、CLI
-drivers/<id>/      驱动插件（driver.yaml + driver.py），simulated 是样板
-pets/<name>/       桌宠（pet.json + frames/*.png）
-tools/             GIF 抽帧、预览合成
-tests/             契约 / 插件 / 桌宠 / 「核心零设备知识」断言
-docs/              AI-GUIDE（工作约定）、阶段状态、改动清单
-library/           上游旧实现，仍在过渡期，勿加新代码
-```
-
-## 加驱动
-
-驱动就是往 `drivers/` 加一个目录，核心不用改：
-
-1. `drivers/<id>/driver.yaml`：`api: 1`、`entry`、`requires`（写 import 名，如 `serial`）
-2. `driver.py` 继承 `lcdmuse.lcd_comm.LcdComm`，实现 `probe / open / close / push_frame`
-3. `python -m lcdmuse.cli drivers list` 看到 `available: true` 就成了
-
-细节与验收标准见 [`docs/AI-GUIDE.md`](docs/AI-GUIDE.md) 第 6、8 节。
-
-### 装到用户目录（不改源码）
-
-```bash
-lcdmuse plugin dir                        # 打印并创建用户插件目录
-lcdmuse plugin add path/to/my-driver      # 装一个目录（或 .zip）
-lcdmuse plugin add my-driver.zip --force   # 覆盖已装的
-lcdmuse plugin list                       # 看用户目录里装了哪些
-lcdmuse plugin remove my-driver           # 卸载
-```
-
-用户插件目录：Windows `%APPDATA%\lcdmuse\drivers`，Linux/macOS `~/.config/lcdmuse/drivers`。
-启动时两个目录都扫，`origin` 列标明来源；同 id 撞车时**用户目录那份生效**，仓库自带的被跳过（会打一条 warning）。
-`driver.yaml` 里的 `min_core` 可声明最低核心版本，核心太旧就只标「不可用」，不会把程序带崩。
 
 ## 桌宠
 
-默认款是 `whale-girl`（5 个状态 × 8 帧，透明底，≤300×400）。
-可以关：`--pet none`、配置里 `pet_enabled: false`。
-自己做一套：`python tools/petify.py --gif a.gif --state eat --out pets/my-pet`。
-素材必须可再分发，并在 `pet.json` 的 `source` 里写清作者与许可。
+![桌宠五个状态](docs/images/pet-states.png)
+
+从左到右：`idle` 待机、`eat` 吃饭、`sleep` 睡觉、`click` 被戳、`say` 说话。
+默认款是 `whale-girl`（蓝发女仆 + 白饭碗，DeepSeek 娘化形象，素材 MIT）。
+
+- **能关**：`--pet none`、配置里 `pet_enabled: false`，以后还会有托盘菜单和 MCP 开关
+- **能换**：扔一个目录进 `pets/` 就行，`pet.json` 描述状态、帧数、锚点
+- **自己做**：`python tools/petify.py --gif a.gif --state eat --out pets/my-pet`
+
+帧率取决于屏：整帧推一次约 3fps（960×480 JPEG 走 921600 串口），只推桌宠区域能到 6–9fps —— 要看具体屏支不支持局部刷新，还没验证。
+
+## 驱动就是插件
+
+核心目录 `lcdmuse/` 里没有一个 VID/PID、命令字或波特率 —— 有一条测试专门盯着这件事：把它塞进去，测试就红。
+
+装一个驱动有两种方式：
+
+```bash
+# 1) 放仓库里（适合开发）
+drivers/my-screen/{driver.yaml, driver.py}
+
+# 2) 装到用户目录（适合用户，不动源码，升级不丢）
+lcdmuse plugin dir                          # 打印目录
+lcdmuse plugin add path/to/my-driver        # 目录或 .zip
+lcdmuse plugin list
+lcdmuse plugin remove my-driver
+```
+
+用户目录：Windows `%APPDATA%\lcdmuse\drivers`，其它平台 `~/.config/lcdmuse/drivers`。
+两个目录都扫，同一个 id 撞车时用户那份优先（`drivers list` 的 `origin` 列标明来源）。
+
+`driver.yaml` 的最小样子：
+
+```yaml
+id: my-screen
+name: 我那块屏
+version: 0.1.0
+api: 1                      # 契约版本
+min_core: "0.1.0"           # 需要的最低核心版本，可选
+entry: driver:Driver        # 文件:类名
+requires: [serial]          # import 名，不是 pip 名
+enabled_by_default: true
+```
+
+驱动只要继承 `lcdmuse.lcd_comm.LcdComm`，实现 `probe / open / close / push_frame` 就能跑；
+`push_region`、`set_brightness`、`set_rotation`、`tick` 想支持哪个就覆盖哪个，不支持就抛 `Unsupported`。
+完整说明见 [`docs/AI-GUIDE.md`](docs/AI-GUIDE.md)。
+
+## 支持情况
+
+| 屏 | 状态 |
+|---|---|
+| `simulated`（内置） | ✅ 可用，把帧存成 PNG，无硬件 |
+| Turing rev A/B/C/D、TURZX USB、WeAct A/B | ⚠️ 适配层已就位、**未在真机验证**，默认不加载 |
+| 先马（960×480 串口 JPEG） | 🚧 协议已实测（`55 AA` 帧 + 直接灌 JPEG），驱动待写 |
+| 爱国者（480×480 HID 圆屏） | 🚧 协议未知，需要抓包逆向 |
+
+上游项目支持哪些屏，见它的 [wiki](https://github.com/mathoudebine/turing-smart-screen-python/wiki/Hardware-revisions)；
+本仓的适配器就是给那些机型留的。
+
+## 项目结构
+
+```
+lcdmuse/                核心（零驱动）
+  lcd_comm.py           契约：错误码、Capability、DeviceInfo、Frame、LcdComm
+  plugin.py             扫 driver.yaml，校验 api / min_core / requires
+  registry.py           多目录枚举 → probe → open；同 id 用户优先
+  plugin_store.py       用户插件安装/卸载（目录或 zip，装完即时校验，失败回滚）
+  render/               画布原语、颜色解析、脏矩形 diff、测试卡
+  transport/            通用串口封装（无设备标识）
+  pet.py                桌宠状态机 + 锚点合成
+  cli.py                lcdmuse 命令
+drivers/<id>/           驱动插件；simulated 是样板
+pets/<name>/            桌宠帧包；_template 是模板
+tools/                  GIF 抽帧、预览合成
+tests/                  21 个用例，含"核心零设备知识"断言
+docs/                   AI-GUIDE（开发约定）、阶段状态、改动清单
+```
+
+## 现在到哪一步了
+
+**已完成**：契约 + 插件系统（含用户目录）+ 渲染与脏矩形 + 桌宠 + CLI + 离线验证。
+**接下来**：主题引擎接 `res/themes` → `lcdmuse-daemon` 独占设备 → `lcdmuse-mcp` 给 AI 用 → 写先马驱动。
+
+细节与缺口清单在 [`docs/STAGE1-STATUS.md`](docs/STAGE1-STATUS.md)。
 
 ## 与上游的关系
 
-本仓是 GPL-3.0 衍生作品：上游的 `LICENSE`、`AUTHORS`、`COPYRIGHT` 原样保留，
-被我们改动或新增的文件列在 [`docs/MODIFICATIONS.md`](docs/MODIFICATIONS.md)。
-上游的驱动实现仍以 `library/`（及适配层 `drivers/_legacy/`）的形式存在，供 7 个原厂机型使用；
-过渡期结束后会删除，届时只剩 `lcdmuse/` + `drivers/`。
+本仓是 [turing-smart-screen-python](https://github.com/mathoudebine/turing-smart-screen-python)（GPL-3.0）的二次封装：
+驱动拆成插件、核心剥离设备知识、界面中文化、加桌宠。
+上游的 `LICENSE` / `AUTHORS` / `COPYRIGHT` 原样保留，改动清单见 [`docs/MODIFICATIONS.md`](docs/MODIFICATIONS.md)。
 
-上游文档（机型差异、主题格式、故障排查）仍然有效，见
-[turing-smart-screen-python wiki](https://github.com/mathoudebine/turing-smart-screen-python/wiki)。
+`res/`（字库 + 主题，约 1 GB）不随本仓发布，缺它会退回 Pillow 默认字体（不崩，中文会缺字），取法见 AI-GUIDE 第 12 节。
 
 ## 许可
 
 **GPL-3.0-or-later**，见 [`LICENSE`](./LICENSE)。
-你可以使用、修改、再分发、收费分发本软件；分发的成品必须同样以 GPL-3.0 提供完整源码，
-并保留上游版权声明与许可文本。
+可改、可再分发、可收费分发；分发的成品必须同样以 GPL-3.0 提供完整源码并保留上游版权声明。
 
-本软件是第三方开源实现，与任何屏幕厂商（Turing / XuanFang / Kipye / WeAct 等）无关，
-不代表、也不受其授权；产品与公司名称归各自所有者。硬件本身的售后问题请找卖家。
-
-## 致谢
-
-- [mathoudebine/turing-smart-screen-python](https://github.com/mathoudebine/turing-smart-screen-python)：契约、渲染、调度、主题格式均源自该项目
-- 桌宠素材来自公开可再分发的美术资源，具体作者与许可见各自的 `pets/<name>/pet.json`
+本软件与任何屏幕厂商无关，不代表也不受其授权；硬件售后请找卖家。
