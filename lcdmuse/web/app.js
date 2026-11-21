@@ -64,7 +64,6 @@ function render(s){
         <span class="txt">${esc(x.alias)}</span>
         <span class="sub num">${x.fps.toFixed(1)}</span></div>`).join("") +
     `<div class="sep"></div><h6>显示</h6>
-       <div class="item" data-act="pet" title="只对当前选中的设备生效">桌宠<span class="sub">${d.pet?"开":"关"}</span></div>
        <div class="item" data-act="theme" title="选一个主题插件">主题<span class="sub">${esc(s.theme || "测试卡")}</span></div>
        <div class="item" data-act="bg" title="图片 / GIF / 视频">底图<span class="sub">${s.background ? "自定义" : "主题自带"}</span></div>
      <div class="sep"></div><h6>系统</h6>
@@ -96,6 +95,9 @@ function render(s){
   } else if (d.frames === 0 && !screen.querySelector("img")) {
     screen.innerHTML = `<span class="empty">等待首帧…</span>`;
   }
+
+  $("pet").textContent = d.pet ? "桌宠：开" : "桌宠：关";
+  $("pet").classList.toggle("primary", !!d.pet);
 
   $("legend").innerHTML = [
     ["状态", d.error ? "异常：" + esc(d.error.slice(0,30)) : (d.paused ? "已暂停" : (d.running ? "运行中" : "未连接"))],
