@@ -188,8 +188,7 @@ async function openBgPicker(){
   openModal("换底图", `
     <div class="opt" data-mode="theme"><b>主题自带</b><span>清空自定义底图，回到主题里的那张</span></div>
     <div class="opt" data-mode="file"><b>＋ 载入图片 / GIF / 视频…</b><span>打开系统文件对话框挑一个文件</span></div>
-    <div class="pathrow"><input id="bgpath" placeholder="或直接粘贴路径" value="${esc(cur)}">
-      <button id="bgapply">应用</button></div>`,
+    <div class="hint">当前：${cur ? esc(cur) : "主题自带"}</div>`,
     `<button class="primary" id="mok">关闭</button>`);
   $("mok").onclick = closeModal;
   $("mbody").querySelector('[data-mode="theme"]').onclick = async () => {
@@ -203,11 +202,7 @@ async function openBgPicker(){
     const res = await api("/api/background", {path: r.path});
     closeModal(); toast(res.ok ? "底图已换：" + r.path.split(/[\\/]/).pop() : "设置失败", !res.ok); tick();
   };
-  $("bgapply").onclick = async () => {
-    const path = $("bgpath").value.trim();
-    const r = await api("/api/background", {path});
-    closeModal(); toast(r.ok ? "底图已设置" : "设置失败", !r.ok); tick();
-  };
+
 }
 
 async function quit(){ await api("/api/quit", {}); document.body.innerHTML =
