@@ -41,7 +41,11 @@ runs:
           '/res/fonts/roboto-mono/' \
           '/res/fonts/geforce/' \
           '/res/fonts/jetbrains-mono/'
-        git fetch -q --depth 1 --filter=blob:none origin "${{ inputs.upstream-commit }}"
-        git checkout -q FETCH_HEAD
+        git fetch --depth 1 --filter=blob:none origin "${{ inputs.upstream-commit }}"
+        git checkout FETCH_HEAD
+        git --version
+        git log --oneline -1
+        git ls-files | head -5
+        ls -la
         cp -r res "$destination/"
         du -sh "$destination/res"
