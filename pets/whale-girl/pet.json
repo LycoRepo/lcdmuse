@@ -1,0 +1,84 @@
+{
+  "name": "whale-girl",
+  "display_name": "鲸鱼娘（蓝色大肥鱼）",
+  "anchor": "bottom-left",
+  "margin": 16,
+  "source": {
+    "author": "Dejavu Moe",
+    "repo": "https://github.com/DejavuMoe/deepseek_wale_girl",
+    "license": "MIT（仅覆盖表情包素材；角色形象为网友二创，非官方）",
+    "note": "由 tools/petify.py 从 GIF 抽帧，裁掉底部文字标签，保留透明底"
+  },
+  "states": {
+    "idle": {
+      "frames": [
+        "frames/idle_00.png",
+        "frames/idle_01.png",
+        "frames/idle_02.png",
+        "frames/idle_03.png",
+        "frames/idle_04.png",
+        "frames/idle_05.png",
+        "frames/idle_06.png",
+        "frames/idle_07.png"
+      ],
+      "fps": 6.0,
+      "loop": true
+    },
+    "eat": {
+      "frames": [
+        "frames/eat_00.png",
+        "frames/eat_01.png",
+        "frames/eat_02.png",
+        "frames/eat_03.png",
+        "frames/eat_04.png",
+        "frames/eat_05.png",
+        "frames/eat_06.png",
+        "frames/eat_07.png"
+      ],
+      "fps": 6.0,
+      "loop": false
+    },
+    "sleep": {
+      "frames": [
+        "frames/sleep_00.png",
+        "frames/sleep_01.png",
+        "frames/sleep_02.png",
+        "frames/sleep_03.png",
+        "frames/sleep_04.png",
+        "frames/sleep_05.png",
+        "frames/sleep_06.png",
+        "frames/sleep_07.png"
+      ],
+      "fps": 6.0,
+      "loop": true
+    },
+    "click": {
+      "frames": [
+        "frames/click_00.png",
+        "frames/click_01.png",
+        "frames/click_02.png",
+        "frames/click_03.png",
+        "frames/click_04.png",
+        "frames/click_05.png",
+        "frames/click_06.png",
+        "frames/click_07.png"
+      ],
+      "fps": 6.0,
+      "loop": false
+    },
+    "say": {
+      "frames": [
+        "frames/say_00.png",
+        "frames/say_01.png",
+        "frames/say_02.png",
+        "frames/say_03.png",
+        "frames/say_04.png",
+        "frames/say_05.png",
+        "frames/say_06.png",
+        "frames/say_07.png"
+      ],
+      "fps": 6.0,
+      "loop": false
+    }
+  }
+}

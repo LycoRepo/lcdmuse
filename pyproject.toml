@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lcdpilot"
+version = "0.1.0"
+description = "小尺寸 USB 副屏的显示管理内核：零驱动、插件式、中文界面、桌宠"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-or-later" }
+dependencies = ["Pillow>=10", "PyYAML>=6", "psutil>=5.9", "pyserial>=3.5"]
+
+[project.optional-dependencies]
+drivers = ["numpy", "pyusb", "pycryptodome"]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+lcdpilot = "lcdpilot.cli:main"
+
+[tool.setuptools]
+packages = ["lcdpilot", "lcdpilot.render", "lcdpilot.transport"]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["drivers/_legacy", "tests/library", "res", "themes"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP", "SIM", "RET"]
+ignore = ["E501", "B027"]

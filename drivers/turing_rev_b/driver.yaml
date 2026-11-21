@@ -1,0 +1,13 @@
+id: turing_rev_b
+name: Turing rev B
+version: 0.1.0
+api: 1
+entry: driver:TuringRevBDriver
+platforms: [windows, linux]
+requires: [serial, numpy]
+enabled_by_default: false
+description: RGB565 串口屏
+settings_schema:
+  port: {type: str, default: "AUTO", label: 串口}
+  width: {type: int, default: 320, label: 宽}
+  height: {type: int, default: 480, label: 高}

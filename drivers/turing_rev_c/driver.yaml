@@ -1,0 +1,13 @@
+id: turing_rev_c
+name: Turing rev C（SoC 串口）
+version: 0.1.0
+api: 1
+entry: driver:TuringRevCDriver
+platforms: [windows, linux]
+requires: [serial, numpy]
+enabled_by_default: false
+description: Linux/Android SoC，CDC-ACM
+settings_schema:
+  port: {type: str, default: "AUTO", label: 串口}
+  width: {type: int, default: 320, label: 宽}
+  height: {type: int, default: 480, label: 高}
