@@ -6,8 +6,10 @@
 """
 from __future__ import annotations
 
+import os
 import re
 import shutil
+import stat
 import tempfile
 import zipfile
 from pathlib import Path
@@ -18,6 +20,22 @@ from lcdmuse.config import default_user_drivers_dir
 from lcdmuse.plugin import DriverPlugin, load_plugins
 
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9_]*$")
+# 别把版本库和缓存拷进用户目录：.git 里的只读对象会让下次 --force 删不掉
+_IGNORE = ("__pycache__", "*.pyc", ".git", ".pytest_cache", "*.egg-info", "out", "logs")
+
+
+def _rmtree(path: Path) -> None:
+    """删目录，遇到只读文件先去掉只读位再删（Windows 上 .git 常见）。"""
+    def _clear_readonly(func, item, exc):
+        try:
+            os.chmod(item, stat.S_IWRITE)
+            func(item)
+        except Exception:
+            raise
+    try:                                    # 3.12+ 用 onexc，老版本用 onerror
+        shutil.rmtree(path, onexc=_clear_readonly)
+    except TypeError:
+        shutil.rmtree(path, onerror=_clear_readonly)
 
 
 class PluginError(RuntimeError):
@@ -72,10 +90,10 @@ def install_plugin(src: Path | str, user_root: Path | str | None = None,
         if dest.exists() and not force:
             raise PluginError(f"{plugin_id} 已经装过，覆盖请加 --force")
         if dest.exists():
-            shutil.rmtree(dest)
+            _rmtree(dest)
 
         root.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(src_dir, dest, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        shutil.copytree(src_dir, dest, ignore=shutil.ignore_patterns(*_IGNORE))
 
         loaded = {p.id: p for p in load_plugins(root, origin="user")}
         plugin: DriverPlugin | None = loaded.get(plugin_id)
