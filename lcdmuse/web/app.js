@@ -152,11 +152,26 @@ async function openThemePicker(){
   const rows = [`<div class="opt" data-id=""><b>测试卡</b><span>不套主题，只画指标</span></div>`]
     .concat(list.map(t => `<div class="opt" data-id="${esc(t.id)}">
         <b>${esc(t.name || t.id)}</b>
-        <span>${esc(t.id)}${t.has_mask ? " · 带蒙版" : ""} · ${t.size ? t.size.join("×") : ""}</span></div>`));
+        <span>${esc(t.id)}${t.has_mask ? " · 带蒙版" : ""} · ${t.size ? t.size.join("×") : ""}</span></div>`))
+    .concat([
+      `<div class="opt install" data-install="dir"><b>＋ 载入主题文件夹…</b><span>选一个含 theme.yaml 的文件夹，拷进用户主题目录</span></div>`,
+      `<div class="opt install" data-install="zip"><b>＋ 载入主题压缩包…</b><span>选 .zip（顶层或里面带 theme.yaml 都行）</span></div>`,
+    ]);
   openModal("换主题", rows.join(""),
     `<button class="primary" id="mok">关闭</button>`);
   $("mok").onclick = closeModal;
-  $("mbody").querySelectorAll(".opt").forEach(el => {
+  $("mbody").querySelectorAll(".opt[data-install]").forEach(el => {
+    el.onclick = async () => {
+      toast("正在打开选择框…");
+      const r = await api("/api/install-theme", {mode: el.dataset.install});
+      if (!r.ok){ if (!r.cancelled) toast("载入失败：" + (r.error || ""), true); return; }
+      closeModal();
+      toast("已载入主题：" + r.installed);
+      openThemePicker();
+      tick();
+    };
+  });
+  $("mbody").querySelectorAll(".opt[data-id]").forEach(el => {
     el.onclick = async () => {
       const id = el.dataset.id;
       const r = await api("/api/theme", {id});
@@ -172,7 +187,7 @@ async function openBgPicker(){
   const cur = s.background || "";
   openModal("换底图", `
     <div class="opt" data-mode="theme"><b>主题自带</b><span>清空自定义底图，回到主题里的那张</span></div>
-    <div class="opt" data-mode="file"><b>选个文件…</b><span>打开系统文件对话框，挑图片 / GIF / 视频</span></div>
+    <div class="opt" data-mode="file"><b>＋ 载入图片 / GIF / 视频…</b><span>打开系统文件对话框挑一个文件</span></div>
     <div class="pathrow"><input id="bgpath" placeholder="或直接粘贴路径" value="${esc(cur)}">
       <button id="bgapply">应用</button></div>`,
     `<button class="primary" id="mok">关闭</button>`);
