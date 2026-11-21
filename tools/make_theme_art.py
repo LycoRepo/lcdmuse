@@ -102,6 +102,33 @@ def _finish(img: Image.Image, *, vig: float = 0.5, grain: int = 3, seed: int = 7
     return ImageChops.add(out, Image.merge("RGB", (noise, noise, noise)), scale=1.0, offset=-128)
 
 
+def deepsea_mask(W: int = 960, H: int = 480) -> Image.Image:
+    """深海主题蒙版：左侧压暗 + 底部玻璃面板 + 一条细高光。"""
+    mask = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    md = ImageDraw.Draw(mask, "RGBA")
+    scrim = Image.new("L", (W, H), 0)
+    sdw = ImageDraw.Draw(scrim)
+    for i in range(int(H * 0.25)):
+        a = int(150 * (1 - i / (H * 0.25)) ** 1.8)
+        sdw.line([(0, i), (W, i)], fill=a)
+    mask.paste(Image.new("RGBA", (W, H), (2, 10, 18, 255)), (0, 0), scrim)
+    md.line([(0, H - 1), (W, H - 1)], fill=(120, 200, 235, 26), width=1)
+    md.rounded_rectangle([24, H - 132, 372, H - 24], radius=16,
+                         fill=(4, 20, 32, 150), outline=(96, 176, 210, 60), width=1)
+    return mask
+
+
+def harbor_mask(W: int = 1480, H: int = 720) -> Image.Image:
+    """夜港主题蒙版：右下时间面板 + 底部指标条 + 轻微右侧压暗。"""
+    mask = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    md = ImageDraw.Draw(mask, "RGBA")
+    md.rounded_rectangle([W - 470, H - 210, W - 60, H - 10], radius=20,
+                         fill=(8, 5, 22, 165), outline=(190, 140, 235, 55), width=1)
+    md.rounded_rectangle([40, H - 110, 1000, H - 12], radius=18,
+                         fill=(8, 5, 22, 165), outline=(190, 140, 235, 40), width=1)
+    return mask
+
+
 def _whale_mask(w: int, h: int) -> Image.Image:
     """鲸鱼剪影蒙版：几个椭圆取并集再羽化，头右尾左。"""
     m = Image.new("L", (w, h), 0)
@@ -309,6 +336,19 @@ def make_neon_harbor() -> tuple[Image.Image, Image.Image]:
 
 
 def main() -> int:
+    import sys
+    if "--masks-only" in sys.argv:              # 底图已经用生图模型出好了，只补蒙版
+        for tid, fn in (("deepsea", deepsea_mask), ("neon-harbor", harbor_mask)):
+            bg_path = THEMES / tid / "bg.jpg"
+            size = Image.open(bg_path).size if bg_path.exists() else None
+            if size is None:
+                print(f"{tid}: 缺 bg.jpg，跳过")
+                continue
+            m = fn(*size)
+            m.save(THEMES / tid / "mask.png")
+            print(f"{tid}: mask {m.size} → {THEMES / tid / 'mask.png'}")
+        return 0
+
     jobs = {
         "deepsea": make_deepsea,
         "neon-harbor": make_neon_harbor,
