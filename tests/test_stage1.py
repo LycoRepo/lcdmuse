@@ -19,6 +19,7 @@ from lcdmuse.plugin_store import PluginError, install_plugin, remove_plugin  # n
 from lcdmuse.registry import Registry  # noqa: E402
 from lcdmuse.render.canvas import Canvas  # noqa: E402
 from lcdmuse.pet import Pet, list_pets  # noqa: E402
+from lcdmuse.player import Player  # noqa: E402
 
 
 # ── 契约 ────────────────────────────────────────────────────────────────
@@ -278,3 +279,63 @@ def test_min_core_blocks_too_new_plugin(tmp_path):
     plugin = load_plugins(tmp_path, origin="user")[0]
     assert not plugin.available
     assert "核心" in plugin.reason
+
+
+# ── 推帧循环 / 托盘图标 ─────────────────────────────────────────────────
+def _cfg(tmp_path):
+    from lcdmuse.config import Config
+    cfg = Config()
+    cfg.drivers_dir = REPO / "drivers"
+    cfg.user_drivers_dir = tmp_path / "user-drivers"
+    cfg.pets_dir = REPO / "pets"
+    cfg.fonts_dir = REPO / "res" / "fonts"
+    cfg.out_dir = tmp_path / "out"
+    cfg.drivers = {"simulated": {"out_dir": str(tmp_path / "out")}}
+    return cfg
+
+
+def test_player_pushes_frames(tmp_path):
+    import time
+    p = Player(_cfg(tmp_path), "simulated", interval=0.1, pet=None)
+    p.start()
+    time.sleep(1.0)
+    p.stop()
+    assert p.status.frames >= 2, p.status
+    assert p.status.last_error == ""
+    assert p.status.size == (960, 480)
+
+
+def test_player_pause_stops_frames(tmp_path):
+    import time
+    p = Player(_cfg(tmp_path), "simulated", interval=0.1, pet=None)
+    p.start()
+    time.sleep(0.5)
+    p.pause()
+    time.sleep(0.2)
+    frames = p.status.frames
+    time.sleep(0.6)
+    p.stop()
+    assert p.status.frames == frames, "暂停后不该继续推帧"
+
+
+def test_player_pet_toggle(tmp_path):
+    p = Player(_cfg(tmp_path), "simulated", interval=1, pet="whale-girl")
+    assert p.pet_name == "whale-girl"
+    assert p.toggle_pet() is None
+    assert p.toggle_pet() == "whale-girl"
+
+
+def test_tray_icon_is_valid_image():
+    from lcdmuse.tray import make_icon
+    img = make_icon(32)
+    assert img.size == (32, 32) and img.mode == "RGBA"
+    assert make_icon(32, active=False, error=True).size == (32, 32)
+
+
+def test_single_instance_blocks_second_copy():
+    from lcdmuse.tray import SingleInstance
+    first = SingleInstance("lcdmuse-test-guard")
+    assert first.acquire() is True
+    second = SingleInstance("lcdmuse-test-guard")
+    assert second.acquire() is False
+    first.release()

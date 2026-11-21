@@ -52,6 +52,28 @@ lcdmuse drivers list        # 看哪个插件认领了它
 lcdmuse render --plugin <id> --out out/screen.png
 ```
 
+## 托盘常驻
+
+不想开控制台就挂托盘：
+
+```bash
+pip install -e ".[tray]"
+lcdmuse tray --plugin all --interval 1     # all = 所有探测到的屏；也可只写一个插件 id
+```
+
+托盘图标（右下角，画的是块小屏 + 绿点表示在推）右键菜单：
+
+| 菜单项 | 作用 |
+|---|---|
+| 第一行状态 | 设备名 · 当前 fps · 已推帧数（多屏时显示 N 块屏） |
+| 暂停 / 继续 | 停推帧但保持设备占用；屏定格在当前画面 |
+| 桌宠 | 一键开关桌宠跑马灯式的覆盖层 |
+| 打开插件目录 | 打开 `%APPDATA%\lcdmuse\drivers` |
+| 打开日志 | 打开 `logs/` |
+| 退出 | 释放设备后退出 |
+
+单实例：重复启动会直接提示"已经在运行"，不会两个进程抢同一块屏。
+
 ## 桌宠
 
 ![桌宠五个状态](docs/images/pet-states.png)

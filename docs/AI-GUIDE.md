@@ -58,6 +58,8 @@ lcdmuse/                 核心（零驱动）
   transport/            通用链路（串口封装），无设备标识
   pet.py                桌宠：pet.json + 状态机 + 锚点合成
   config.py             配置与日志
+  player.py             推帧循环（托盘与 CLI 共用，无界面依赖、可无头测试）
+  tray.py               托盘图标 + 右键菜单（pystray，单实例）
   cli.py                命令行入口
 drivers/<id>/           driver.yaml + driver.py
   simulated/            不接硬件的样板驱动
@@ -104,6 +106,7 @@ python -m lcdmuse.cli drivers list
 python -m lcdmuse.cli probe
 python -m lcdmuse.cli render --offline --pet whale-girl --out out/preview.png
 python -m lcdmuse.cli plugin list          # 用户目录里装了什么
+python -m lcdmuse.cli tray --plugin all    # 托盘常驻（会占设备，验收完记得退出）
 python -m pytest tests/test_stage1.py -q
 ```
 
