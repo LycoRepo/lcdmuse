@@ -83,6 +83,7 @@ class Theme:
     _media: MediaSource | None = None
     _mask: Image.Image | None = None
     _mask_cache: dict[tuple[int, int], Image.Image] = field(default_factory=dict)
+    _mask_overlay_cache: dict[tuple, tuple[Image.Image, Image.Image]] = field(default_factory=dict)
     _hook: Any = None
 
     # ── 加载 ────────────────────────────────────────────────────────────
@@ -180,22 +181,10 @@ class Theme:
             opacity = float(self.background.get("mask_opacity",
                                                (self.background.get("mask") or {}).get("opacity", 1.0))
                             if isinstance(self.background.get("mask"), dict) else 1.0)
-            mask = self._mask
-            if mask.size != size:            # 缩放一次就缓存，别每帧重算（1480×720 上这是最大开销）
-                cached = self._mask_cache.get(size)
-                if cached is None:
-                    cached = fit_image(self._mask, size, "stretch")
-                    self._mask_cache[size] = cached
-                mask = cached
-            if mask.mode != "RGBA":
-                mask = mask.convert("RGBA")
-            if opacity < 1.0:
-                alpha = mask.getchannel("A").point(lambda a: int(a * max(0.0, min(1.0, opacity))))
-                mask = mask.copy()
-                mask.putalpha(alpha)
-            canvas = canvas.convert("RGBA")
-            canvas.alpha_composite(mask)
-            canvas = canvas.convert("RGB")
+            overlay = self._mask_overlay(size, opacity)
+            if overlay is not None:
+                rgb, alpha = overlay
+                canvas.paste(rgb, (0, 0), alpha)      # 只做一次 alpha 混合，不整幅来回转 RGBA
 
         # 设计画布 → 实际分辨率：坐标与字号按比例放大，别让 1480×720 上只用左边 2/3
         design = self.size or size
@@ -210,6 +199,32 @@ class Theme:
             except Exception as exc:                    # 主题自己的脚本坏了别拖垮整帧
                 log.warning("主题 %s 的 theme.py 出错: %s", self.id, exc)
         return canvas
+
+    def _mask_overlay(self, size: tuple[int, int], opacity: float):
+        """蒙版的 RGB 与 alpha 通道按 (尺寸, 不透明度) 缓存一次，之后每帧直接 paste。"""
+        key = (size, round(float(opacity), 3))
+        cached = self._mask_overlay_cache.get(key)
+        if cached is not None:
+            return cached
+        mask = self._mask
+        if mask is None:
+            return None
+        if mask.size != size:
+            scaled = self._mask_cache.get(size)
+            if scaled is None:
+                scaled = fit_image(self._mask, size, "stretch")
+                self._mask_cache[size] = scaled
+            mask = scaled
+        if mask.mode != "RGBA":
+            mask = mask.convert("RGBA")
+        alpha = mask.getchannel("A")
+        if opacity < 1.0:
+            alpha = alpha.point(lambda a: int(a * max(0.0, min(1.0, opacity))))
+        elif opacity <= 0.0:
+            return None
+        cached = (mask.convert("RGB"), alpha)
+        self._mask_overlay_cache[key] = cached
+        return cached
 
     def _draw_item(self, canvas: Image.Image, item: Mapping[str, Any], values: Mapping[str, Any],
                    size: tuple[int, int], font_dir: Path | None,
