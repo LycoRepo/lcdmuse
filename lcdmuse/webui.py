@@ -393,11 +393,22 @@ class _Handler(BaseHTTPRequestHandler):
 
         if url.path == "/api/theme":
             theme_id = str(data.get("id") or "")
-            for player in self.players:
-                player.set_theme(theme_id)
-            self.cfg.theme = theme_id
+            idx = data.get("index")
+            if idx is None:                             # 没指定就所有屏一起换
+                for player in self.players:
+                    player.set_theme(theme_id)
+                self.cfg.theme = theme_id
+                self.cfg.device_themes.clear()
+            else:
+                try:
+                    player = self.players[int(idx)]
+                except (ValueError, TypeError, IndexError):
+                    return self._json({"ok": False, "error": "设备序号不对"}, 400)
+                player.set_theme(theme_id)              # 只换这一块屏
+                self.cfg.device_themes[player.plugin_id] = theme_id
             self.cfg.save()
-            return self._json({"ok": True, "theme": theme_id})
+            return self._json({"ok": True, "theme": theme_id,
+                               "devices": {p.plugin_id: p.theme_id for p in self.players}})
 
         if url.path == "/api/background":
             path = str(data.get("path") or "")

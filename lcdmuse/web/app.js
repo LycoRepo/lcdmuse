@@ -53,7 +53,7 @@ async function openPath(target){
 
 function render(s){
   $("ver").textContent = "v" + s.version;
-  const devs = s.devices || [];
+  const devs = s.devices || []; window.__devs = devs;
   if (selected >= devs.length) selected = 0;
   const d = devs[selected] || {};
 
@@ -149,6 +149,7 @@ async function openThemePicker(){
   let data = {themes: []};
   try { data = await api("/api/themes"); } catch(e) {}
   const list = data.themes || [];
+  const devName = ((window.__devs || [])[selected] || {}).alias || `设备 ${selected + 1}`;
   const rows = [`<div class="opt" data-id=""><b>测试卡</b><span>不套主题，只画指标</span></div>`]
     .concat(list.map(t => `<div class="opt" data-id="${esc(t.id)}">
         <b>${esc(t.name || t.id)}</b>
@@ -157,7 +158,7 @@ async function openThemePicker(){
       `<div class="opt install" data-install="dir"><b>＋ 载入主题文件夹…</b><span>选一个含 theme.yaml 的文件夹，拷进用户主题目录</span></div>`,
       `<div class="opt install" data-install="zip"><b>＋ 载入主题压缩包…</b><span>选 .zip（顶层或里面带 theme.yaml 都行）</span></div>`,
     ]);
-  openModal("换主题", rows.join(""),
+  openModal(`换主题 · ${esc(devName)}`, rows.join(""),
     `<button class="primary" id="mok">关闭</button>`);
   $("mok").onclick = closeModal;
   $("mbody").querySelectorAll(".opt[data-install]").forEach(el => {
@@ -174,7 +175,7 @@ async function openThemePicker(){
   $("mbody").querySelectorAll(".opt[data-id]").forEach(el => {
     el.onclick = async () => {
       const id = el.dataset.id;
-      const r = await api("/api/theme", {id});
+      const r = await api("/api/theme", {id, index: selected});
       closeModal();
       toast(r.ok ? (id ? "已切到主题 " + id : "已切回测试卡") : "切换失败", !r.ok);
       tick();
