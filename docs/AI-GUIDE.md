@@ -185,7 +185,53 @@ python -m pytest tests/test_stage1.py -q
 2. `lcdmuse/` 无协议魔数与波特率常量。
 3. 删掉整个 `drivers/` 后，核心仍可 import、仍能 `render --offline` 出图。
 
-## 9. 沿用的上游约定（对 `library/` 旧栈仍然有效）
+## 9. MCP（给 DSH 用）
+
+设备只允许一个进程持有，所以 MCP **不碰硬件**：`lcdmuse mcp --stdio` 把 DSH 的 JSON-RPC 原样转给托盘内嵌的
+`POST /mcp`，由托盘里的 `Toolbox` 执行。托盘没起就返回 `device_offline`，不假装成功。
+
+```
+DSH ──stdio──> lcdmuse mcp --stdio ──HTTP(127.0.0.1)<── runtime.json 里的端口 ──> 托盘（唯一持设备）
+```
+
+- 托盘启动时把 `{"pid", "port", "version"}` 写进 `%APPDATA%\lcdmuse\runtime.json`；退出时删掉。
+- 端口随机分配（`127.0.0.1` 回环，不对外）；想固定就 `lcdmuse tray --port 7788`。
+- 结果统一 `{ok, data, error}`，`error.code` ∈ `device_offline` / `invalid_argument` / `unsupported` / `internal_error`。
+- 大图只收**文件路径**，不收 base64。
+
+DSH 侧配置：
+
+```yaml
+mcpServers:
+  lcdmuse:
+    command: lcdmuse
+    args: ["mcp", "--stdio"]
+```
+
+工具（15 个）：
+
+| 工具 | 参数 | 作用 |
+|---|---|---|
+| `lcd_list_devices` | — | 列出所有在推的屏（id/分辨率/帧率/主题/桌宠） |
+| `lcd_device_info` | `device_id?` | 单块屏详情 |
+| `lcd_status` | `device_id?` | 详情 + 当前合成（主题/桌宠/底图） |
+| `lcd_metrics` | `names?` | 当前指标值 + 指标清单 |
+| `lcd_show_image` | `path`, `fit?`, `device_id?` | 把图/GIF/视频铺到屏上 |
+| `lcd_show_background` | `path`, `device_id?` | 换底图（空字符串=回主题自带） |
+| `lcd_show_theme` | `theme`, `device_id?` | 切主题插件（空字符串=测试卡） |
+| `lcd_render_preview` | `theme? background? pet? width? height? out_png?` | 不接硬件渲染 PNG，先看效果 |
+| `lcd_push_frame` | `png_path`, `device_id?` | 直推现成 PNG（尺寸必须与屏一致） |
+| `lcd_set_brightness` | `percent` 0-100 | 亮度；驱动不支持回 `unsupported` |
+| `lcd_set_rotation` | `degrees` 0/90/180/270 | 旋转 |
+| `lcd_pet_list` | — | 有哪些桌宠插件 |
+| `lcd_pet_set` | `pet?`, `enabled?` | 开/关/换桌宠 |
+| `lcd_pet_state` | `state` | idle/eat/sleep/click/say |
+| `lcd_pet_say` | `text` | 切到 say（预渲染素材，文字不会画上去） |
+
+自测（不需要 DSH、不碰硬件，假托盘 + stdio 转发）：`tests/test_stage1.py` 里的 `test_mcp_*` 两个用例覆盖
+工具清单、参数校验、错误码、离线渲染，以及 `POST /mcp` 端到端。
+
+## 10. 沿用的上游约定（对 `library/` 旧栈仍然有效）
 
 - `.py` 文件头带 `SPDX-License-Identifier: GPL-3.0-or-later`。
 - 配置 YAML 优先：先加选项到 `config.yaml`，再到 `library/config.py` 读，别硬编码。
@@ -194,7 +240,7 @@ python -m pytest tests/test_stage1.py -q
 - 周期性更新走 `library/scheduler.py`，不要自己起并发循环抢设备。
 - 主题键名保持兼容（参考 `res/themes/default.yaml`）。
 
-## 10. 旧栈速查（上游流程，仍在跑）
+## 11. 旧栈速查（上游流程，仍在跑）
 
 **数据流**
 
@@ -237,14 +283,14 @@ pyinstaller turing-system-monitor.spec   # Windows 打包（含 res/、external/
 `library/scheduler.py`（周期任务与写队列）· `library/stats.py`（采集与绘制）· `config.yaml`（用户配置项）·
 `simple-program.py`（低层 API 示例）· `turing-system-monitor.spec`（打包清单）
 
-## 11. 提交规范
+## 12. 提交规范
 
 - 一次提交只做一件事；大改动拆成能独立评审的几步。
 - 默认保持向后兼容，破坏性改动要先说明。
 - 提交信息写清"为什么"，不是"改了哪几行"。
 - PR 落到别人手里也要能看懂：附实测命令与输出。
 
-## 12. 资源不在本仓
+## 13. 资源不在本仓
 
 `res/`（字库 + 主题，约 1 GB）不随仓库发布。缺字库时渲染退回 Pillow 默认字体（不崩，中文会缺字）。取法：
 
@@ -256,14 +302,14 @@ cp -r /tmp/tss/res ./res
 因此 `simple-program.py` 缺 `res/` 时会自己画一张纯色渐变背景、缺字库时退回内置字体（只警告，不崩）。
 CI 的 System monitor 测试不拉整份 `res/`：`.github/actions/fetch-theme-assets` 用稀疏检出只取主题/字库子集（约 10 MB，上游 commit 已 pin）。
 
-## 13. 不要做
+## 14. 不要做
 
 - 不把型号、序列号、VID/PID、串口号写进 `lcdmuse/` 或文档正文。
 - 不在核心引 `numpy`/`pyusb` 这类重依赖，它们只属于具体驱动的 `requires`。
 - 不在设备所有者不在场时操作真实屏幕，不抢厂商软件占用的串口；自动化测试一律 `simulated` / `--offline`。
 - 不删上游版权与许可声明。
 
-## 14. 已知缺口
+## 15. 已知缺口
 
 - `library/` 未删：`main.py` / `configure.py` / `theme-editor.py` 仍依赖它。
 - 原厂适配器的 `probe()` 依赖旧代码的串口枚举，未在真实硬件上验证。
@@ -271,7 +317,7 @@ CI 的 System monitor 测试不拉整份 `res/`：`.github/actions/fetch-theme-a
 - `lcdmuse/service/`（daemon + IPC）与 `lcdmuse/mcp/` 未开工。
 - 主题引擎仍是 `render/demo.py` 的测试卡，未接 `res/themes`。
 
-## 15. 提交前自检
+## 16. 提交前自检
 
 ```bash
 python -m ruff check lcdmuse drivers/*/driver.py tools/petify.py tools/pet_preview.py tests/test_stage1.py

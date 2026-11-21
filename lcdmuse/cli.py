@@ -148,7 +148,8 @@ def cmd_tray(args: argparse.Namespace, cfg: Config) -> int:
     """托盘常驻：把玩家循环挂到右下角，右键菜单能暂停/开关桌宠/退出。"""
     from lcdmuse.tray import run_tray
     pet = None if args.pet in ("none", "off") else (args.pet or cfg.default_pet)
-    return run_tray(cfg, args.plugin or "", interval=args.interval, pet=pet)
+    return run_tray(cfg, args.plugin or "", interval=args.interval, pet=pet,
+                    port=getattr(args, "port", 0) or 0)
 
 
 def cmd_pets_list(args: argparse.Namespace, cfg: Config) -> int:
@@ -170,6 +171,15 @@ def cmd_themes_list(args: argparse.Namespace, cfg: Config) -> int:
     print(json.dumps({"ok": True, "dirs": [str(d) for d in dirs],
                       "active": cfg.theme, "themes": themes}, ensure_ascii=False, indent=2))
     return 0
+
+
+def cmd_mcp(args: argparse.Namespace, cfg: Config) -> int:
+    """MCP：stdio 给 DSH 拉起；--url 可手动指托盘。"""
+    from lcdmuse.mcp_server import daemon_url, serve_stdio
+    url = args.url or daemon_url()
+    if not url:
+        log.warning("托盘没在跑（没有 runtime.json），工具调用会返回 device_offline")
+    return serve_stdio(url)
 
 
 def cmd_metrics(args: argparse.Namespace, cfg: Config) -> int:
@@ -274,12 +284,18 @@ def build_parser() -> argparse.ArgumentParser:
     tr.add_argument("--plugin", default="", help="留空自动探测设备")
     tr.add_argument("--interval", type=float, default=1.0, help="推帧间隔（秒）")
     tr.add_argument("--pet", default="", help="桌宠名；传 none 表示关掉桌宠")
+    tr.add_argument("--port", type=int, default=0, help="控制台/MCP 固定端口（默认随机）")
     tr.set_defaults(func=cmd_tray)
 
     th = sub.add_parser("themes", help="主题插件（themes/<id>/theme.yaml）")
     thsub = th.add_subparsers(dest="sub", required=True)
     thl = thsub.add_parser("list", help="列出仓库与用户目录里的主题")
     thl.set_defaults(func=cmd_themes_list)
+
+    mc = sub.add_parser("mcp", help="MCP 服务（stdio）：把工具调用转发给托盘")
+    mc.add_argument("--stdio", action="store_true", help="用 stdio 传输（DSH 就是这样拉起的）")
+    mc.add_argument("--url", default="", help="托盘 MCP 端点；默认读 runtime.json")
+    mc.set_defaults(func=cmd_mcp)
 
     mt = sub.add_parser("metrics", help="打印当前指标（主题绑的就是这些名字）")
     mt.add_argument("--catalog", action="store_true", help="附带指标清单与说明")

@@ -82,6 +82,22 @@ lcdmuse render --offline --background D:/wallpapers/loop.gif --out out/bg.png   
 
 详见 `docs/AI-GUIDE.md` 第 7 节（三类插件的清单格式、蒙版元素、指标表）。
 
+### MCP（让 DSH 这类代理接管）
+
+托盘是唯一持有设备的进程，MCP 只是薄封装、不碰硬件：`lcdmuse mcp --stdio` 把 JSON-RPC 转给托盘内嵌的 `POST /mcp`。托盘没起就返回 `device_offline`，不假装成功。
+
+```yaml
+# DSH / 任意 MCP 客户端
+mcpServers:
+  lcdmuse:
+    command: lcdmuse
+    args: ["mcp", "--stdio"]
+```
+
+15 个工具：`lcd_list_devices`、`lcd_device_info`、`lcd_status`、`lcd_metrics`、`lcd_show_image`、`lcd_show_background`、`lcd_show_theme`、`lcd_render_preview`、`lcd_push_frame`、`lcd_set_brightness`、`lcd_set_rotation`、`lcd_pet_list`、`lcd_pet_set`、`lcd_pet_state`、`lcd_pet_say`。图片一律传**文件路径**（不收 base64）；结果统一 `{ok, data, error}`，错误码 `device_offline` / `invalid_argument` / `unsupported`。
+
+端口写在 `%APPDATA%\lcdmuse\runtime.json`，想固定就 `lcdmuse tray --port 7788`。详见 `docs/AI-GUIDE.md` 第 9 节。
+
 ### 界面是可改的，三层分开
 
 | 层 | 位置 | 怎么改 |
