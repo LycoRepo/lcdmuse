@@ -698,7 +698,7 @@ def test_mcp_render_preview_and_web_endpoint(tmp_path):
     assert payload["ok"] and out.is_file()
     assert _Img.open(out).size == (960, 480)
 
-    server, port = start_server([player], cfg)
+    server, port = start_server([player], cfg, publish_runtime=True)
     try:
         base = f"http://127.0.0.1:{port}"
         runtime = read_runtime()

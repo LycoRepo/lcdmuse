@@ -56,6 +56,10 @@ def read_runtime() -> dict[str, Any]:
 
 
 def clear_runtime() -> None:
+    """只删自己写的那一份：别人的托盘还在跑就别动。"""
+    runtime = read_runtime()
+    if runtime and runtime.get("pid") not in (None, os.getpid()):
+        return
     with contextlib.suppress(OSError):
         runtime_path().unlink()
 

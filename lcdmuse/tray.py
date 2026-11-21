@@ -135,7 +135,7 @@ def run_tray(cfg: Config, plugin_id: str = "", interval: float = 1.0,
         with contextlib.suppress(Exception):
             icon.stop()
 
-    server, port = start_server(players, cfg, port=port, on_quit=_quit_all)
+    server, port = start_server(players, cfg, port=port, on_quit=_quit_all, publish_runtime=True)
     url = f"http://127.0.0.1:{port}/"
     if os.environ.get(f"{APP_NAME.upper()}_SHOW_WINDOW", "1") == "1":
         # 默认把界面亮出来；设成 0 就只留托盘图标，点图标再开

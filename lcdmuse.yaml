@@ -2,5 +2,7 @@ theme: bezel-mask
 pet_enabled: true
 default_pet: whale-girl
 drivers: {}
-device_names: {}
+device_names:
+  sama_s300: 先马 S300
+  aigo_xingcanlan: 爱国者 星璨岚
 background: ''
