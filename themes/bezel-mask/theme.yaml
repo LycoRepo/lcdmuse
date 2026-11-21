@@ -1,0 +1,41 @@
+api: 1
+id: bezel-mask
+name: 侧栏蒙版
+description: 底图铺满，右侧一块半透明数据面板；时间/CPU/内存/显存/网络绑在指标上
+size: [960, 480]
+
+background:
+  type: media            # media | color
+  path: bg.jpg           # 主题目录里的底图；不存在就退回下面的 color
+  color: "#070b11"
+  fit: cover
+  mask:
+    path: mask.png
+    opacity: 1.0
+
+overlay:
+  - text: {text: "LCDMUSE", at: [46, 42], size: 22, bold: true, color: "#e8eef5"}
+  - text: {text: "副屏 · 零驱动核心", at: [46, 72], size: 13, color: "#93a6bb"}
+
+  - text: {text: "SYSTEM", at: [628, 86], size: 11, color: "#7c8ea3"}
+  - text: {metric: "time.now", at: [626, 104], size: 56, bold: true, color: "#e8eef5"}
+  - text: {metric: "date.today", at: [628, 172], size: 15, color: "#8b98a9"}
+  - text: {metric: "uptime.hours", at: [860, 176], size: 15, color: "#8b98a9", unit: " h", prefix: "运行 ", anchor: "ra"}
+
+  - text: {text: "CPU", at: [628, 216], size: 12, color: "#7c8ea3"}
+  - text: {metric: "cpu.percent", at: [908, 214], size: 15, color: "#5ad2ff", unit: "%", decimals: 0, anchor: "ra"}
+  - bar:  {metric: "cpu.percent", box: [628, 236, 280, 6], color: "#5ad2ff", track: "#141d29"}
+
+  - text: {text: "内存", at: [628, 262], size: 12, color: "#7c8ea3"}
+  - text: {metric: "mem.percent", at: [908, 260], size: 15, color: "#46d39a", unit: "%", decimals: 0, anchor: "ra"}
+  - bar:  {metric: "mem.percent", box: [628, 282, 280, 6], color: "#46d39a", track: "#141d29"}
+
+  - text: {text: "显存", at: [628, 308], size: 12, color: "#7c8ea3"}
+  - text: {metric: "gpu.mem_percent", at: [908, 306], size: 15, color: "#e2a33c", unit: "%",
+           decimals: 0, default: "—", anchor: "ra"}
+  - bar:  {metric: "gpu.mem_percent", box: [628, 328, 280, 6], color: "#e2a33c", track: "#141d29"}
+
+  - text: {text: "网络", at: [628, 354], size: 12, color: "#7c8ea3"}
+  - text: {metric: "net.rx_kbps", at: [908, 352], size: 14, color: "#8fa3b8", unit: " KB/s ↓",
+           decimals: 0, anchor: "ra"}
+  - bar:  {metric: "net.rx_kbps", max: 512, box: [628, 374, 280, 6], color: "#5f7d99", track: "#141d29"}

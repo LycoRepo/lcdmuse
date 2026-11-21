@@ -44,7 +44,10 @@ def _state(players: list[Player], cfg: Config, selected: int) -> dict[str, Any]:
             "error": st.last_error,
             "pet": player.pet_name,
         })
+    theme = players[0].theme_id if players else ""
+    background = getattr(players[0], "_background_path", "") if players else ""
     return {"version": __version__, "devices": devices, "selected": selected,
+            "theme": theme, "background": background,
             "config_path": str(cfg.drivers_dir.parent / "lcdmuse.yaml"),
             "user_drivers": str(cfg.user_drivers_dir)}
 
@@ -105,6 +108,19 @@ class _Handler(BaseHTTPRequestHandler):
         if url.path == "/api/status":
             self._json(_state(self.players, self.cfg, self.selected))
             return
+        if url.path == "/api/metrics":
+            from lcdmuse.metrics import CATALOG, read
+            self._json({"values": read(), "catalog": [
+                {"name": k, "label": v[0], "unit": v[1]} for k, v in CATALOG.items()]})
+            return
+        if url.path == "/api/themes":
+            from lcdmuse.theme import list_themes, theme_dirs
+            self._json({"themes": [t.describe() for t in list_themes(theme_dirs(self.cfg))]})
+            return
+        if url.path == "/api/pets":
+            from lcdmuse.pet import list_pets, pet_dirs
+            self._json({"pets": list_pets(pet_dirs(self.cfg))})
+            return
         if url.path == "/api/preview":
             query = parse_qs(url.query)
             index = int(query.get("i", [str(self.selected)])[0])
@@ -164,6 +180,22 @@ class _Handler(BaseHTTPRequestHandler):
                 else Path(self.cfg.out_dir).parent / "logs"
             _open_path(path)
             return self._json({"ok": True, "path": str(path)})
+
+        if url.path == "/api/theme":
+            theme_id = str(data.get("id") or "")
+            for player in self.players:
+                player.set_theme(theme_id)
+            self.cfg.theme = theme_id
+            self.cfg.save()
+            return self._json({"ok": True, "theme": theme_id})
+
+        if url.path == "/api/background":
+            path = str(data.get("path") or "")
+            for player in self.players:
+                player.set_background(path)
+            self.cfg.background = path
+            self.cfg.save()
+            return self._json({"ok": True, "background": path})
 
         if url.path == "/api/quit":
             self._json({"ok": True})

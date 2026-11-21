@@ -31,8 +31,8 @@ function render(s){
         <span class="sub num">${d.fps.toFixed(1)}</span></div>`).join("") +
     `<div class="sep"></div><h6>显示</h6>
        <div class="item" id="navPet">桌宠<span class="sub">${devs[0]&&devs[0].pet?"开":"关"}</span></div>
-       <div class="item"><span class="dim">主题</span><span class="sub">未接</span></div>
-       <div class="item"><span class="dim">图片 / 推帧</span><span class="sub">CLI</span></div>
+       <div class="item" id="navTheme" title="点一下换主题插件">主题<span class="sub">${esc(s.theme || "测试卡")}</span></div>
+       <div class="item" id="navBg" title="点一下换底图：图片 / GIF / 视频">底图<span class="sub">${s.background ? "自定义" : "主题自带"}</span></div>
      <div class="sep"></div><h6>系统</h6>
        <div class="item" id="navPlugins">插件目录</div>
        <div class="item" id="navLogs">日志</div>
@@ -43,6 +43,8 @@ function render(s){
     el.onclick = async () => { selected = +el.dataset.i; await api("/api/select", {index:selected}); tick(); };
   });
   $("navPet").onclick = togglePet;
+  $("navTheme").onclick = pickTheme;
+  $("navBg").onclick = pickBackground;
   $("navPlugins").onclick = () => api("/api/open", {target:"plugins"});
   $("navLogs").onclick = () => api("/api/open", {target:"logs"});
   $("navQuit").onclick = quit;
@@ -72,6 +74,8 @@ function render(s){
     ["设备自报", d.device || "—"],
     ["帧 / 帧率", `${d.frames ?? 0} 帧 · ${(d.fps ?? 0).toFixed(1)} fps`],
     ["桌宠", d.pet ? d.pet : "关闭"],
+    ["主题", s.theme ? s.theme : "测试卡"],
+    ["底图", s.background ? s.background : "主题自带"],
     ["配置", s.config_path || "—"],
     ["插件目录", s.user_drivers || "—"],
   ].map(([k,v]) => `<tr><td>${k}</td><td class="num" style="word-break:break-all">${esc(v)}</td></tr>`).join("");
@@ -129,6 +133,27 @@ function drawChart(){
 
 async function tick(){ try{ render(await api("/api/status")); }catch(e){ $("status").textContent = "与本地服务断开：" + e; } }
 async function togglePet(){ await api("/api/pet", {}); tick(); }
+
+async function pickTheme(){
+  const data = await api("/api/themes");
+  const list = data.themes || [];
+  if (!list.length){ alert("themes/ 里还没有主题插件"); return; }
+  const lines = list.map((t,i) => `${i+1}. ${t.id} — ${t.name}${t.has_mask?"（带蒙版）":""}`).join("\n");
+  const answer = prompt(`换主题（输入编号，留空=测试卡）：\n${lines}`, "");
+  if (answer === null) return;
+  const idx = parseInt(answer, 10);
+  const id = answer.trim() === "" ? "" : (list[idx-1] ? list[idx-1].id : answer.trim());
+  await api("/api/theme", {id});
+  tick();
+}
+
+async function pickBackground(){
+  const current = (await api("/api/status")).background || "";
+  const path = prompt("底图路径（图片 / GIF / 视频；留空=用主题自带的）：", current);
+  if (path === null) return;
+  await api("/api/background", {path});
+  tick();
+}
 async function quit(){ await api("/api/quit", {}); document.body.innerHTML =
   `<div style="padding:40px;color:#8798ab;font:13px 'Microsoft YaHei UI'">已退出，设备已释放。</div>`; }
 

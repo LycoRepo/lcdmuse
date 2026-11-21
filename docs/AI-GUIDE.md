@@ -92,19 +92,88 @@ library/                旧栈（待删，勿加新代码）
    同 id 与仓库自带插件撞车时，**用户目录那份优先**，另一份只打 warning。
 7. 跨版本兼容写在 `driver.yaml` 的 `min_core`（如 `min_core: 0.2.0`）；核心版本低于它时插件只标「不可用」。
 
-## 7. 加一个桌宠
+## 7. 三类插件：驱动 / 主题 / 桌宠
 
-1. `pets/<name>/pet.json` + `frames/*.png`（透明底，建议 ≤300×400）。
+三样东西都是插件，规则一样：**仓库目录 + 用户目录，同名时用户目录覆盖**，删掉任何一个都不会让核心崩。
+
+| 类型 | 仓库目录 | 用户目录（Windows） | 清单文件 | 契约 |
+|---|---|---|---|---|
+| 驱动 | `drivers/<id>/` | `%APPDATA%\lcdmuse\drivers` | `driver.yaml` | `LcdDriver`：`probe/open/push_frame/close` |
+| 主题 | `themes/<id>/` | `%APPDATA%\lcdmuse\themes` | `theme.yaml` | `Theme.render(size, metrics)`，或 `theme.py` 里的 `draw(img, ctx)` |
+| 桌宠 | `pets/<id>/` | `%APPDATA%\lcdmuse\pets` | `pet.json` | 状态机 + PNG 帧，`frame_at(now)` |
+
+模块：`lcdmuse/registry.py`（驱动）、`lcdmuse/theme.py`（主题）、`lcdmuse/pet.py`（桌宠）、`lcdmuse/compose.py`（把三层拼起来）。
+
+### 7.1 主题 = 蒙版 + 数据，底图单独换
+
+合成顺序固定：**底图 → 主题（蒙版/文字/进度条）→ 桌宠**。桌宠永远在最上层，不会被蒙版压暗。
+
+```yaml
+api: 1
+id: bezel-mask
+name: 侧栏蒙版
+size: [960, 480]                # 设计画布；实际分辨率以驱动握手为准，自动缩放
+background:
+  type: media                   # media | color
+  path: bg.jpg                  # 相对主题目录；图片 / GIF / WebP / 视频都可以
+  color: "#070b11"              # 底图缺失时的底色
+  fit: cover                    # cover | contain | stretch
+  mask: {path: mask.png, opacity: 1.0}   # 蒙版：整幅压上去的 RGBA 图
+overlay:
+  - text: {text: "LCDMUSE", at: [46, 42], size: 22, bold: true, color: "#e8eef5"}
+  - text: {metric: "time.now", at: [626, 104], size: 56, bold: true}
+  - bar:  {metric: "cpu.percent", box: [628, 236, 280, 6], color: "#5ad2ff", track: "#141d29"}
+```
+
+`overlay` 五种元素：`rect`（色块/圆角）、`text`（绑指标或纯文字）、`bar`（进度条）、`image`（贴图）、`mask`（局部蒙版）。
+
+- `text.metric` 缺省时用 `text: "..."` 写死文案；`unit`/`decimals`/`prefix`/`suffix`/`anchor`（`la`/`ra`/`ma`）。
+- `bar.max` 默认 100；网络这类非百分比指标要自己给 `max`。
+- 需要写代码画东西时，在主题目录放 `theme.py`：`def draw(img, ctx)`，`ctx.metrics` 是同一份指标快照，`ctx.font/ctx.color` 是格式化工具。异常会被吞掉并退回基础渲染，不会把屏弄黑。
+
+**换底图不用改主题**：配置里 `background: D:/wallpapers/loop.gif`（图片 / GIF / 视频都行），或面板上点「底图」。视频需要本机有 `ffmpeg`，首次抽帧后缓存到 `%APPDATA%\lcdmuse\cache\media\`。
+
+### 7.2 数据接口（主题绑的就是这些名字）
+
+Python：`from lcdmuse.metrics import read; read()["cpu.percent"]`。
+命令行：`python -m lcdmuse.cli metrics --catalog`。
+HTTP：`GET /api/metrics`（返回 `{values, catalog}`）。
+
+| 名字 | 含义 | 单位 |
+|---|---|---|
+| `time.now` / `time.seconds` / `date.today` / `date.weekday` | 时间日期 | — |
+| `uptime.hours` | 开机时长 | h |
+| `cpu.percent` / `cpu.freq_mhz` / `cpu.temp_c` | CPU | %/MHz/°C |
+| `mem.percent` / `mem.used_mb` / `mem.total_mb` / `swap.percent` | 内存 | %/MB |
+| `disk.percent` / `disk.free_gb` | 系统盘 | %/GB |
+| `net.rx_kbps` / `net.tx_kbps` / `net.total_gb` | 网络 | KB/s/GB |
+| `gpu.percent` / `gpu.temp_c` / `gpu.mem_percent` | NVIDIA（有 `nvidia-smi` 才有） | %/°C |
+
+取不到的指标**不出现在字典里**，主题用 `default` 兜底（例如 `default: "—"`）。要加自己的指标：
+
+```python
+from lcdmuse.metrics import get_hub
+get_hub().register("myapp", lambda: {"queue": 12})   # 之后就是 myapp.queue
+```
+
+### 7.3 加一个桌宠
+
+1. `pets/<name>/pet.json` + `frames/*.png`（透明底，建议 ≤300×400），`api: 1`。
 2. 状态：`idle` 循环；`eat`/`click`/`say` 播完回 idle；`sleep` 保持。
 3. `python tools/petify.py --gif a.gif --state eat --out pets/<name>` 抽帧。
 4. 素材必须可再分发（MIT/CC0），作者与许可写进 `pet.json` 的 `source`。
+5. 用户目录 `%APPDATA%\lcdmuse\pets\<id>\` 放同名桌宠会覆盖仓库里的。
 
 ## 8. 验收命令（改前改后都跑）
 
 ```bash
 python -m lcdmuse.cli drivers list
+python -m lcdmuse.cli themes list          # 主题插件
+python -m lcdmuse.cli pets list            # 桌宠插件
+python -m lcdmuse.cli metrics --catalog    # 数据接口
 python -m lcdmuse.cli probe
-python -m lcdmuse.cli render --offline --pet whale-girl --out out/preview.png
+python -m lcdmuse.cli render --offline --theme bezel-mask --pet whale-girl --out out/preview.png
+python -m lcdmuse.cli render --offline --background D:/wallpapers/loop.gif --out out/watch-bg.png
 python -m lcdmuse.cli plugin list          # 用户目录里装了什么
 python -m lcdmuse.cli tray --plugin all    # 托盘常驻（会占设备，验收完记得退出）
 python -m pytest tests/test_stage1.py -q

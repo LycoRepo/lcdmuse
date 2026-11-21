@@ -8,7 +8,9 @@ import textwrap
 from pathlib import Path
 
 import io
+
 import pytest
+from PIL import Image as _Img
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
@@ -373,10 +375,20 @@ class _DummyPlayer:
                                    running=True, frames=7, fps=1.0)
         from PIL import Image as _Img
         self.last_image = _Img.new("RGB", (960, 480), (10, 20, 30))
+        self.theme_id = cfg.theme
+        self._background_path = ""
 
     def set_pet(self, name):
         self.pet_name = name or None
         self.status.pet = self.pet_name
+
+    def set_theme(self, theme_id):
+        self.theme_id = theme_id or ""
+        return self.theme_id
+
+    def set_background(self, path):
+        self._background_path = path or ""
+        return self._background_path
 
 
 def test_web_control_console_serves_state_and_preview(tmp_path):
@@ -472,3 +484,131 @@ def test_web_ui_is_plain_files_and_swappable(tmp_path, monkeypatch):
             assert "404" in str(exc) or "403" in str(exc) or "HTTP Error" in str(exc)
     finally:
         server.shutdown()
+
+
+# ── 三类插件：主题 / 桌宠 / 数据接口 ─────────────────────────────────────
+def _tmp_white(tmp_path):
+    path = tmp_path / "white.png"
+    _Img.new("RGB", (960, 480), (255, 255, 255)).save(path)
+    return path
+
+
+def _mean(image):
+    data = list(image.getdata())
+    return sum(data) / len(data)
+
+
+def test_metrics_interface_has_stable_names():
+    from lcdmuse.metrics import CATALOG, format_value, get_hub, read
+
+    values = read()
+    for key in ("time.now", "date.today", "cpu.percent", "mem.percent", "disk.percent",
+                "net.rx_kbps", "uptime.hours"):
+        assert key in values, f"缺指标 {key}"
+    assert set(CATALOG) >= {"cpu.percent", "mem.percent", "gpu.percent"}
+
+    # 第三方可以挂自己的指标
+    hub = get_hub()
+    hub.register("_test", lambda: {"queue": 7})
+    assert hub.sample()["_test.queue"] == 7
+
+    assert format_value(12.34, unit="%", decimals=1) == "12.3%"
+    assert format_value(80, unit="%") == "80%"
+    assert format_value(None, prefix="运行 ", unit=" h") == "运行 None h"
+
+
+def test_media_background_image_and_gif(tmp_path):
+    from lcdmuse.media import MediaSource, fit_image
+
+    still = tmp_path / "still.png"
+    _Img.new("RGB", (400, 200), (200, 30, 30)).save(still)
+    src = MediaSource.open(still, (960, 480))
+    assert src.kind == "image" and not src.animated
+    assert src.frame().size == (960, 480)
+
+    # cover：短边贴满，长边裁掉
+    fitted = fit_image(_Img.new("RGB", (400, 200), (0, 0, 0)), (100, 100), "cover")
+    assert fitted.size == (100, 100)
+
+    gif = tmp_path / "anim.gif"
+    frames = [_Img.new("RGB", (120, 60), c) for c in ((250, 0, 0), (0, 250, 0), (0, 0, 250))]
+    frames[0].save(gif, save_all=True, append_images=frames[1:], duration=100, loop=0)
+    anim = MediaSource.open(gif, (240, 120))
+    assert anim.kind == "anim" and anim.animated
+    a, b = anim.frame(0.02), anim.frame(0.25)
+    assert a.size == (240, 120) and a.tobytes() != b.tobytes()
+
+
+def test_theme_plugin_mask_and_metrics(tmp_path):
+    from lcdmuse.media import MediaSource
+    from lcdmuse.metrics import read
+    from lcdmuse.theme import find_theme, list_themes, theme_dirs
+
+    themes = {t.id: t for t in list_themes(theme_dirs())}
+    assert "bezel-mask" in themes
+    theme = find_theme("bezel-mask")
+    assert theme is not None and theme.size == (960, 480)
+
+    values = dict(read())
+    values.update({"cpu.percent": 100.0, "mem.percent": 50.0, "time.now": "12:34"})
+    img = theme.render((960, 480), metrics=values)
+    assert img.size == (960, 480)
+
+    # 蒙版确实压上去了：换成纯白底图后，面板内部应该明显比面板外暗
+    white = MediaSource.open(_tmp_white(tmp_path), (960, 480))
+    shaded = theme.render((960, 480), metrics=values, media=white)
+    inside = shaded.crop((700, 150, 860, 340)).convert("L")
+    outside = shaded.crop((330, 150, 560, 340)).convert("L")
+    assert _mean(inside) < _mean(outside) - 60
+
+    # 换个分辨率也能出图（实际分辨率由驱动握手决定）
+    assert theme.render((480, 240), metrics=values).size == (480, 240)
+
+
+def test_pet_plugins_are_swappable_and_versioned(tmp_path):
+    import json
+
+    from lcdmuse.lcd_comm import InvalidArgument
+    from lcdmuse.pet import find_pet, list_pets, pet_dirs
+
+    dirs = pet_dirs()
+    assert "whale-girl" in list_pets(dirs)
+    assert find_pet("whale-girl", dirs) is not None
+
+    # 用户目录里放一份同名桌宠 → 覆盖内置
+    user = tmp_path / "pets"
+    (user / "whale-girl" / "frames").mkdir(parents=True)
+    frame = user / "whale-girl" / "frames" / "idle.png"
+    _Img.new("RGBA", (64, 64), (0, 255, 0, 255)).save(frame)
+    (user / "whale-girl" / "pet.json").write_text(json.dumps({
+        "api": 1, "name": "whale-girl", "display_name": "我的鲸鱼娘",
+        "anchor": "bottom-left", "margin": 8,
+        "states": {"idle": {"frames": ["frames/idle.png"], "fps": 4}},
+    }), encoding="utf-8")
+    found = find_pet("whale-girl", [dirs[0], user])
+    assert found.display_name == "我的鲸鱼娘"
+
+    # 版本不对要明确拒绝
+    (user / "bad" / "frames").mkdir(parents=True)
+    (user / "bad" / "pet.json").write_text(json.dumps({
+        "api": 99, "states": {"idle": {"frames": []}}}), encoding="utf-8")
+    with pytest.raises(InvalidArgument):
+        find_pet("bad", [user])
+
+
+def test_composition_stacks_background_theme_and_pet():
+    from lcdmuse.compose import Composition
+    from lcdmuse.metrics import read
+    from lcdmuse.pet import find_pet
+    from lcdmuse.theme import find_theme
+
+    comp = Composition(theme=find_theme("bezel-mask"), pet=find_pet("whale-girl"),
+                       font_dir=REPO / "res" / "fonts")
+    img = comp.render((960, 480), metrics=read())
+    assert img.size == (960, 480)
+    assert comp.describe()["theme"] == "bezel-mask"
+    assert comp.describe()["pet"] == "whale-girl"
+
+    # 只有主题、没有桌宠也能出图
+    plain = Composition(theme=find_theme("bezel-mask")).render((960, 480), metrics=read())
+    assert plain.size == (960, 480)

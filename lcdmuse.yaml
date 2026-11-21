@@ -1,7 +1,6 @@
-theme: 3.5inchTheme2
+theme: bezel-mask
 pet_enabled: true
 default_pet: whale-girl
 drivers: {}
-device_names:
-  sama_s300: 先马 S300
-  aigo_xingcanlan: 爱国者 星璨岚
+device_names: {}
+background: D:/Code/lcdmuse-verify/bg-loop.gif
