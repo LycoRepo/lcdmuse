@@ -225,15 +225,16 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 def start_server(players: list[Player], cfg: Config, port: int = 0,
-                 on_quit=None) -> tuple[ThreadingHTTPServer, int]:
+                 on_quit=None, publish_runtime: bool = False) -> tuple[ThreadingHTTPServer, int]:
     """起一个只监听 127.0.0.1 的小服务；port=0 由系统分配。"""
     handler = type("BoundHandler", (_Handler,), {"players": players, "cfg": cfg, "on_quit": on_quit})
     server = ThreadingHTTPServer(("127.0.0.1", port), handler)
     thread = threading.Thread(target=server.serve_forever, name="lcdmuse-web", daemon=True)
     thread.start()
     bound = server.server_address[1]
-    write_runtime(bound)          # 端口写盘，lcdmuse mcp --stdio 靠它找到这里
-    atexit.register(clear_runtime)
+    if publish_runtime:           # 只有托盘有权把端口写盘，别人（测试/临时实例）不许覆盖
+        write_runtime(bound)
+        atexit.register(clear_runtime)
     log.info("控制台：http://127.0.0.1:%d/   （MCP 端点 /mcp）", bound)
     return server, bound
 

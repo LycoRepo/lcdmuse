@@ -82,7 +82,10 @@ class Config:
 
     def save(self, path: Path | str | None = None) -> Path:
         """只回写我们管的几个键，其余保持原样。"""
-        p = Path(path) if path else (self.path or REPO_ROOT / f"{APP_NAME}.yaml")
+        p = Path(path) if path else self.path
+        if p is None:                     # 不是从配置文件起来的实例：不许写回，免得把别人的配置冲掉
+            log.warning("这个 Config 没有来源文件，跳过回写（用 Config.load() 或显式传 path）")
+            return Path(f"{APP_NAME}.yaml")
         data: dict[str, Any] = {}
         if p.exists():
             try:
