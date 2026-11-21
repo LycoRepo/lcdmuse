@@ -125,8 +125,10 @@ def _make_roamer(cfg: Config, players: list) -> Any:
         return None
     if pet_obj is None:
         return None
-    from lcdmuse.roam import RoamingPet
-    return RoamingPet(pet=pet_obj, order=ids)
+    from lcdmuse import roam as roam_mod
+    roamer = roam_mod.RoamingPet(pet=pet_obj, order=ids)
+    roam_mod.CURRENT = roamer      # 供 webui / MCP 取当前这只
+    return roamer
 
 
 def run_tray(cfg: Config, plugin_id: str = "", interval: float = 0.2,
@@ -146,6 +148,7 @@ def run_tray(cfg: Config, plugin_id: str = "", interval: float = 0.2,
     roamer = _make_roamer(cfg, players)
     for p in players:
         p.roamer = roamer
+        p.single_pet = True                 # 现在「只有一只」是硬规则，不是可选项
     for p in players:
         p.start()
 

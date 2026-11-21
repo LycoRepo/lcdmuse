@@ -275,15 +275,49 @@ class _Handler(BaseHTTPRequestHandler):
             return self._json({"ok": True, "paused": target})
 
         if url.path == "/api/pet":
-            index = data.get("index")
-            index = self.selected if index is None else int(index)
-            index = max(0, min(index, len(self.players) - 1))
-            player = self.players[index]
+            # 全局只有一只：这里开/关的是那一只，不是给某块屏单独配一只
+            from lcdmuse import roam as roam_mod
+            roamer = roam_mod.CURRENT
             want = data.get("enabled")
-            enable = (player.pet_name is None) if want is None else bool(want)
-            player.set_pet((self.cfg.default_pet or "whale-girl") if enable else None)
-            return self._json({"ok": True, "index": index, "enabled": enable,
-                               "pet": player.pet_name})
+            if roamer is None:
+                # 没有巡游实例（例如命令行单推模式）：退回按设备单只的旧行为
+                index = data.get("index")
+                index = self.selected if index is None else int(index)
+                index = max(0, min(index, len(self.players) - 1))
+                player = self.players[index]
+                enable = (player.pet_name is None) if want is None else bool(want)
+                player.set_pet((self.cfg.default_pet or "whale-girl") if enable else None)
+                return self._json({"ok": True, "index": index, "enabled": enable,
+                                   "pet": player.pet_name})
+            roamer.enabled = (not roamer.enabled) if want is None else bool(want)
+            return self._json({"ok": True, "enabled": roamer.enabled,
+                               "pet": roamer.pet.name})
+
+        if url.path == "/api/pet/activity":
+            from lcdmuse import roam as roam_mod
+            roamer = roam_mod.CURRENT
+            if roamer is None:
+                return self._json({"ok": False, "error": "桌宠未启动"}, 503)
+            kind = str(data.get("kind") or "idle")
+            roamer.set_activity(kind, text=data.get("text"),
+                                seconds=float(data.get("seconds") or 12))
+            return self._json({"ok": True, "kind": kind})
+
+        if url.path in ("/api/pet/feed", "/api/pet/play", "/api/pet/mood"):
+            from lcdmuse import roam as roam_mod
+            roamer = roam_mod.CURRENT
+            if roamer is None:
+                return self._json({"ok": False, "error": "桌宠未启动"}, 503)
+            mood = roamer.mood or roamer._mood()
+            if mood is None:
+                return self._json({"ok": False, "error": "养成数据不可用"}, 503)
+            if url.path == "/api/pet/feed":
+                mood.feed()
+                roamer.set_activity("hungry", text="好吃！", seconds=6)
+            elif url.path == "/api/pet/play":
+                mood.play()
+                roamer.set_activity("play", text="再来一次", seconds=6)
+            return self._json({"ok": True, "mood": mood.summary()})
 
         if url.path == "/api/rename":
             index = int(data.get("index") or 0)

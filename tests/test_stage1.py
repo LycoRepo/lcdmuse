@@ -820,13 +820,17 @@ def test_roaming_pet_is_on_one_screen_at_a_time():
                     "walk": {"row": 0, "frames": 4, "fps": 4}},
     }), encoding="utf-8")
 
-    roam = RoamingPet(pet=Pet.load(d), order=["screenA", "screenB"], speed=2.0, dwell=999)
+    roam = RoamingPet(pet=Pet.load(d), order=["screenA", "screenB"], speed=5.0, dwell=999)
+    # 固定成「一直走路」，别让随机行为调度干扰断言
+    roam._action, roam.direction = "walk", 1
+    roam._action_until = roam._next_ambient = 1e18
+
     drawn = [roam.draw_on("screenA", 800, 400, step=0, now=10.0),
              roam.draw_on("screenB", 800, 400, step=0, now=10.0)]
     assert drawn[0] is not None and drawn[1] is None      # 只在 A 上
-    # 走满一圈后换屏（速度 2.0/s → 半秒就走完一遍）
-    roam.draw_on("screenA", 800, 400, step=0, now=10.5)
-    roam.draw_on("screenA", 800, 400, step=0, now=11.0)
+    assert drawn[0].sprite.size[0] <= 800 * 0.55 + 1
+    # 速度 5/s：0.3 秒就走出右边缘，换到 B
+    roam.draw_on("screenA", 800, 400, step=0, now=10.3)
     assert roam.current == "screenB"
-    assert roam.draw_on("screenB", 800, 400, step=0, now=11.5) is not None
-    assert roam.draw_on("screenA", 800, 400, step=0, now=11.5) is None
+    assert roam.draw_on("screenB", 800, 400, step=0, now=10.6) is not None
+    assert roam.draw_on("screenA", 800, 400, step=0, now=10.6) is None
