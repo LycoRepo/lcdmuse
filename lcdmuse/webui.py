@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import atexit
 import io
 import json
 import os
@@ -21,6 +22,7 @@ from urllib.parse import parse_qs, urlparse
 
 from lcdmuse import __version__
 from lcdmuse.config import Config, log
+from lcdmuse.mcp_server import Toolbox, clear_runtime, handle as mcp_handle, write_runtime
 
 if TYPE_CHECKING:                                     # pragma: no cover
     from lcdmuse.player import Player
@@ -146,6 +148,21 @@ class _Handler(BaseHTTPRequestHandler):
         except Exception:
             data = {}
 
+        if url.path == "/mcp":                      # DSH 的 MCP 请求（JSON-RPC 2.0）
+            try:
+                request = json.loads(raw.decode() or "{}")
+            except Exception:
+                request = {}
+            if isinstance(request, list):           # 批量请求
+                replies = [mcp_handle(item, Toolbox(self.players, self.cfg)) for item in request]
+                return self._json([r for r in replies if r is not None])
+            reply = mcp_handle(request, Toolbox(self.players, self.cfg))
+            if reply is None:                       # 通知没有响应体
+                self.send_response(204)
+                self.end_headers()
+                return None
+            return self._json(reply)
+
         if url.path == "/api/select":
             self.selected = int(data.get("index") or 0)
             return self._json({"ok": True, "selected": self.selected})
@@ -214,8 +231,11 @@ def start_server(players: list[Player], cfg: Config, port: int = 0,
     server = ThreadingHTTPServer(("127.0.0.1", port), handler)
     thread = threading.Thread(target=server.serve_forever, name="lcdmuse-web", daemon=True)
     thread.start()
-    log.info("控制台：http://127.0.0.1:%d/", server.server_address[1])
-    return server, server.server_address[1]
+    bound = server.server_address[1]
+    write_runtime(bound)          # 端口写盘，lcdmuse mcp --stdio 靠它找到这里
+    atexit.register(clear_runtime)
+    log.info("控制台：http://127.0.0.1:%d/   （MCP 端点 /mcp）", bound)
+    return server, bound
 
 
 WEB_DIR = Path(__file__).resolve().parent / "web"

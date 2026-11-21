@@ -612,3 +612,113 @@ def test_composition_stacks_background_theme_and_pet():
     # 只有主题、没有桌宠也能出图
     plain = Composition(theme=find_theme("bezel-mask")).render((960, 480), metrics=read())
     assert plain.size == (960, 480)
+
+
+# ── MCP：工具清单 / 参数校验 / 错误码 / 转发端点 ─────────────────────────
+def test_mcp_tools_and_error_codes(tmp_path):
+    import json as _json
+
+    from lcdmuse.config import Config
+    from lcdmuse.mcp_server import TOOLS, Toolbox, handle
+
+    cfg = Config()
+    cfg.user_drivers_dir = tmp_path / "drivers"
+    cfg.user_themes_dir = tmp_path / "themes"
+    cfg.user_pets_dir = tmp_path / "pets"
+    cfg.out_dir = tmp_path / "out"
+    player = _DummyPlayer(cfg)
+    box = Toolbox([player], cfg)
+
+    init = handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}, box)
+    assert init["result"]["serverInfo"]["name"] == "lcdmuse"
+
+    listing = handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, box)
+    names = {t["name"] for t in listing["result"]["tools"]}
+    assert {"lcd_list_devices", "lcd_show_image", "lcd_show_theme", "lcd_render_preview",
+            "lcd_set_brightness", "lcd_pet_set", "lcd_metrics"} <= names
+    assert len(listing["result"]["tools"]) == len(TOOLS)
+
+    def call(name, **args):
+        reply = handle({"jsonrpc": "2.0", "id": 9, "method": "tools/call",
+                        "params": {"name": name, "arguments": args}}, box)
+        return reply["result"], _json.loads(reply["result"]["content"][0]["text"])
+
+    result, payload = call("lcd_list_devices")
+    assert payload["ok"] and payload["data"]["devices"][0]["size"] == [960, 480]
+    assert result["isError"] is False
+
+    # 只收文件路径，且文件必须存在
+    result, payload = call("lcd_show_image", path="")
+    assert payload["ok"] is False and payload["error"]["code"] == "invalid_argument"
+    result, payload = call("lcd_show_image", path=str(tmp_path / "nope.png"))
+    assert payload["error"]["code"] == "invalid_argument"
+    assert result["isError"] is True
+
+    # 没有驱动 → device_offline（不是崩）
+    _, payload = call("lcd_set_brightness", percent=50)
+    assert payload["error"]["code"] == "device_offline"
+    _, payload = call("lcd_set_brightness", percent=500)
+    assert payload["error"]["code"] == "invalid_argument"
+
+    # 桌宠：关掉/换一只
+    _, payload = call("lcd_pet_set", enabled=False)
+    assert payload["ok"] and payload["data"]["enabled"] is False and player.pet_name is None
+    _, payload = call("lcd_pet_set", pet="whale-girl")
+    assert payload["data"]["enabled"] is True and player.pet_name == "whale-girl"
+
+    # 未知工具 / 未知方法
+    _, payload = call("lcd_not_a_tool")
+    assert payload["error"]["code"] == "invalid_argument"
+    bad = handle({"jsonrpc": "2.0", "id": 3, "method": "no/such"}, box)
+    assert bad["error"]["code"] == -32601
+
+
+def test_mcp_render_preview_and_web_endpoint(tmp_path):
+    import json as _json
+    import urllib.request
+
+    from lcdmuse.config import Config
+    from lcdmuse.mcp_server import Toolbox, read_runtime
+    from lcdmuse.webui import start_server
+
+    cfg = Config()
+    cfg.user_drivers_dir = tmp_path / "drivers"
+    cfg.user_themes_dir = tmp_path / "themes"
+    cfg.user_pets_dir = tmp_path / "pets"
+    cfg.out_dir = tmp_path / "out"
+    cfg.theme = "bezel-mask"
+    cfg.pet_enabled = True
+    cfg.default_pet = "whale-girl"
+    player = _DummyPlayer(cfg)
+
+    # 离线渲染：不接硬件也能出 PNG
+    out = tmp_path / "preview.png"
+    payload = Toolbox([player], cfg).render_preview(theme="bezel-mask", pet="whale-girl",
+                                                    width=960, height=480, out_png=str(out))
+    assert payload["ok"] and out.is_file()
+    assert _Img.open(out).size == (960, 480)
+
+    server, port = start_server([player], cfg)
+    try:
+        base = f"http://127.0.0.1:{port}"
+        runtime = read_runtime()
+        assert runtime.get("port") == port
+
+        def rpc(method, params=None, req_id=1):
+            req = urllib.request.Request(base + "/mcp",
+                                         data=_json.dumps({"jsonrpc": "2.0", "id": req_id,
+                                                           "method": method,
+                                                           "params": params or {}}).encode(),
+                                         headers={"Content-Type": "application/json"})
+            return _json.loads(urllib.request.urlopen(req, timeout=10).read())
+
+        assert rpc("tools/list")["result"]["tools"]
+        reply = rpc("tools/call", {"name": "lcd_show_theme", "arguments": {"theme": "bezel-mask"}})
+        inner = _json.loads(reply["result"]["content"][0]["text"])
+        assert inner["ok"] and inner["data"]["theme"] == "bezel-mask"
+
+        reply = rpc("tools/call", {"name": "lcd_metrics", "arguments": {"names": ["cpu.percent"]}})
+        inner = _json.loads(reply["result"]["content"][0]["text"])
+        assert list(inner["data"]["values"]) == ["cpu.percent"]
+    finally:
+        server.shutdown()

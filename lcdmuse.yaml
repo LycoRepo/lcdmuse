@@ -3,4 +3,4 @@ pet_enabled: true
 default_pet: whale-girl
 drivers: {}
 device_names: {}
-background: D:/Code/lcdmuse-verify/bg-loop.gif
+background: ''
