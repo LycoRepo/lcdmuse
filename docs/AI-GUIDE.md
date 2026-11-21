@@ -3,6 +3,7 @@
 > 给人和 AI 代理看的工作约定。中文为主。
 > 本仓是 **turing-smart-screen-python**（GPL-3.0）的二次封装：驱动全部插件化、核心不含设备知识、界面中文化、加桌宠框架。
 > 许可证不变，仍是 **GPL-3.0-or-later**。
+> 上游原有的 `AGENTS.md` 已并入本文件（内容见第 10 节），不再单独维护。
 
 ---
 
@@ -115,14 +116,57 @@ python -m pytest tests/test_stage1.py -q
 - 周期性更新走 `library/scheduler.py`，不要自己起并发循环抢设备。
 - 主题键名保持兼容（参考 `res/themes/default.yaml`）。
 
-## 10. 提交规范
+## 10. 旧栈速查（上游流程，仍在跑）
+
+**数据流**
+
+```
+config.yaml
+  → library/config.py        读 config.yaml，再叠 res/themes/<THEME>/theme.yaml（缺项回默认）
+  → library/stats.py         按 HW_SENSORS 取数据：AUTO / PYTHON / LHM / STUB
+  → library/stats.py         按 theme.yaml 画成图
+  → library/display.py       按 REVISION 选驱动（A/B/C/D / TUR_USB / WEACT_A/B / SIMU）
+  → LcdComm*                 编码、推给屏
+  → library/scheduler.py     @schedule / @async_job + 写屏队列（串行化，别自己起并发循环）
+```
+
+**没有硬件也能开工**：`config.yaml` 里把 `REVISION` 设成 `SIMU`，会走 `library/lcd/lcd_simulated.py`，把画面写进 `screencap.png`，不碰任何设备。
+
+**常用命令**
+
+```bash
+pip install -r requirements.txt
+python main.py                # 常驻程序
+python configure.py           # 配置界面（tkinter + sv-ttk）
+python theme-editor.py        # 主题编辑器
+python simple-program.py      # 最小示例：直接往屏上画
+pyinstaller turing-system-monitor.spec   # Windows 打包（含 res/、external/、config.yaml）
+```
+
+**依赖归属（别往核心塞）**
+
+| 用途 | 包 |
+|---|---|
+| 串口屏 | `pyserial` |
+| Turing USB 屏 | `pyusb` |
+| Windows 深度传感器 | `pythonnet` + `external/LibreHardwareMonitor/*.dll` |
+| 系统指标 | `psutil`、`GPUtil`、`pyamdgpuinfo`（Linux AMD）、`pyadl`（Windows AMD） |
+| 界面 | `pystray`（托盘）、`tkinter` + `sv-ttk`（配置界面）、`Pillow` / `numpy`（图像） |
+
+**改旧栈时先看这几个文件**
+
+`main.py`（编排/托盘/信号）· `library/config.py`（配置与主题合并）· `library/display.py`（驱动工厂与尺寸）·
+`library/scheduler.py`（周期任务与写队列）· `library/stats.py`（采集与绘制）· `config.yaml`（用户配置项）·
+`simple-program.py`（低层 API 示例）· `turing-system-monitor.spec`（打包清单）
+
+## 11. 提交规范
 
 - 一次提交只做一件事；大改动拆成能独立评审的几步。
 - 默认保持向后兼容，破坏性改动要先说明。
 - 提交信息写清"为什么"，不是"改了哪几行"。
 - PR 落到别人手里也要能看懂：附实测命令与输出。
 
-## 11. 资源不在本仓
+## 12. 资源不在本仓
 
 `res/`（字库 + 主题，约 1 GB）不随仓库发布。缺字库时渲染退回 Pillow 默认字体（不崩，中文会缺字）。取法：
 
@@ -131,14 +175,14 @@ git clone --depth 1 https://github.com/mathoudebine/turing-smart-screen-python /
 cp -r /tmp/tss/res ./res
 ```
 
-## 12. 不要做
+## 13. 不要做
 
 - 不把型号、序列号、VID/PID、串口号写进 `lcdpilot/` 或文档正文。
 - 不在核心引 `numpy`/`pyusb` 这类重依赖，它们只属于具体驱动的 `requires`。
 - 不在设备所有者不在场时操作真实屏幕，不抢厂商软件占用的串口；自动化测试一律 `simulated` / `--offline`。
 - 不删上游版权与许可声明。
 
-## 13. 已知缺口
+## 14. 已知缺口
 
 - `library/` 未删：`main.py` / `configure.py` / `theme-editor.py` 仍依赖它。
 - 原厂适配器的 `probe()` 依赖旧代码的串口枚举，未在真实硬件上验证。
@@ -146,7 +190,7 @@ cp -r /tmp/tss/res ./res
 - `lcdpilot/service/`（daemon + IPC）与 `lcdpilot/mcp/` 未开工。
 - 主题引擎仍是 `render/demo.py` 的测试卡，未接 `res/themes`。
 
-## 14. 提交前自检
+## 15. 提交前自检
 
 ```bash
 python -m ruff check lcdpilot drivers/*/driver.py tools/petify.py tools/pet_preview.py tests/test_stage1.py
