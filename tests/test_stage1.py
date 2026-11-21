@@ -771,8 +771,8 @@ def test_pet_step_mode_advances_exactly_one_frame_per_push(tmp_path):
 
     pet = Pet.load(root)
     assert pet.micro_motion is False           # 精灵图默认不叠加抖动
-    for step in range(6):
-        px = pet.frame_at(now=123.456, step=step).convert("RGB").getpixel((4, 4))
+    for step in range(6):                       # 不给时间 → 按推帧步进取帧
+        px = pet.frame_at(step=step).convert("RGB").getpixel((4, 4))
         assert abs(px[0] - (step % 4) * 60) <= 8, f"第 {step} 次推帧取到了 {px}"   # webp 有损，留容差
 
 

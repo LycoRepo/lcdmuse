@@ -1,6 +1,6 @@
 theme: bezel-mask
 pet_enabled: true
-default_pet: whale-girl-q     # Q 版立绘（放在用户目录，不进仓库）
+default_pet: whale-girl-webm  # dsh-pet 的 webm 动作包（20 个动作，进仓库）
 drivers:
   sama_s300:
     target_fps: 3.0          # 921600 8N1 约 92 KB/s，一帧 ~30 KB，再快就排队了

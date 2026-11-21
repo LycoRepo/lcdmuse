@@ -34,6 +34,9 @@ class SheetCell:
 class PetState:
     name: str
     frames: list[Any]          # Path 或 SheetCell
+    sheet_path: Path | None = None     # 该状态独占的精灵图（整张网格图太吃内存）
+    sheet_columns: int = 1
+    frame_size: tuple[int, int] | None = None
     fps: float = 3.0
     loop: bool = True
 
@@ -60,6 +63,7 @@ class Pet:
     micro_motion: bool = True                                     # 帧少时叠加呼吸/抖动；帧密的精灵图应关掉
     facing: str = "right"                                         # 素材本身朝哪边（决定走路时是否镜像）
     sheet: Image.Image | None = None                              # 精灵图（一整张）
+    _sheet_cache: dict[Any, Image.Image] = field(default_factory=dict)   # 状态图 LRU(2)
     sheet_columns: int = 1
     frame_size: tuple[int, int] | None = None
 
@@ -78,7 +82,7 @@ class Pet:
         if kind != "pet":
             raise InvalidArgument(f"{root.name} 不是桌宠插件（kind={kind}）")
         # 两种素材格式：逐帧 PNG（frames: [...]）或一整张精灵图（spritesheet: {...}）
-        sheet_spec = data.get("spritesheet")
+        sheet_spec = data.get("spritesheet")   # 全局精灵图（兼容老写法）
         sheet = None
         columns = 1
         frame_size = None
@@ -96,6 +100,22 @@ class Pet:
 
         states: dict[str, PetState] = {}
         for name, spec in (data.get("states") or {}).items():
+            if "sheet" in spec:                    # 每个状态一张小图（推荐：内存小得多）
+                rel = str(spec["sheet"])
+                path = root / rel
+                if not path.exists():
+                    raise InvalidArgument(f"桌宠 {root.name} 的 {name} 缺精灵图 {rel}")
+                count = int(spec.get("frames") or 1)
+                with Image.open(path) as im:
+                    cols = int(spec.get("columns") or count)
+                    fsize = (im.width // max(1, cols), im.height)
+                states[name] = PetState(name=name,
+                                        frames=[SheetCell(0, c) for c in range(count)],
+                                        fps=float(spec.get("fps", 3.0)),
+                                        loop=bool(spec.get("loop", name not in ONE_SHOT)),
+                                        sheet_path=path, sheet_columns=cols,
+                                        frame_size=fsize)
+                continue
             if sheet is not None and "row" in spec:
                 row = int(spec["row"])
                 count = int(spec.get("frames") if isinstance(spec.get("frames"), int) else columns)
@@ -121,6 +141,20 @@ class Pet:
                    micro_motion=bool(data.get("micro_motion", sheet is None)),
                    facing=str(data.get("facing") or "right"),
                    sheet=sheet, sheet_columns=columns, frame_size=frame_size)
+
+    def _sheet_for(self, st: PetState) -> Image.Image | None:
+        """取这个状态用的整张图：优先状态自带的 sheet，否则用全局那张。"""
+        if st.sheet_path is None:
+            return self.sheet
+        cached = self._sheet_cache.get(st.sheet_path)
+        if cached is not None:
+            return cached
+        with Image.open(st.sheet_path) as im:
+            img = im.convert("RGBA")
+        if len(self._sheet_cache) >= 2:               # 只留最近两个动作的图
+            self._sheet_cache.pop(next(iter(self._sheet_cache)))
+        self._sheet_cache[st.sheet_path] = img
+        return img
 
     # ── 状态机 ──────────────────────────────────────────────────────────
     @property
@@ -153,29 +187,33 @@ class Pet:
         ``step`` 给定时按「第几次推帧」取帧，而不是按墙钟时间采样——屏幕只有 3fps 时，
         8fps 的动画按时间采样会每次跳到不相邻的帧，看起来就是在闪。按步进就不会。
         """
+        explicit_time = now is not None
         now = now if now is not None else time.time()
         st = self._resolve(now)
-        if step is not None and st.loop:
+        if step is not None and st.loop and not explicit_time:
             idx = int(step) % len(st.frames)
         else:
             idx = int((now - self._started) * st.fps)
             idx = idx % len(st.frames) if st.loop else min(idx, len(st.frames) - 1)
         ref = st.frames[idx]
-        sprite = self._cache.get(ref)
-        if sprite is None and isinstance(ref, SheetCell) and self.sheet is not None:
-            fw, fh = self.frame_size or (0, 0)
-            box = (ref.col * fw, ref.row * fh, (ref.col + 1) * fw, (ref.row + 1) * fh)
-            sprite = self.sheet.crop(box)
+        sprite = self._cache.get((st.name, ref))
+        if sprite is None and isinstance(ref, SheetCell):
+            sheet_img = self._sheet_for(st)
+            if sheet_img is not None:
+                fw, fh = (st.frame_size if st.sheet_path else self.frame_size) or (0, 0)
+                box = (ref.col * fw, ref.row * fh, (ref.col + 1) * fw, (ref.row + 1) * fh)
+                sprite = sheet_img.crop(box)
         if sprite is None:
             with Image.open(ref) as im:
                 sprite = im.convert("RGBA")
         if sprite is not None and self.scale != 1.0:
             size = (max(1, int(sprite.width * self.scale)), max(1, int(sprite.height * self.scale)))
             sprite = sprite.resize(size, Image.Resampling.LANCZOS)
-        if sprite is not None and ref not in self._cache:
+        key = (st.name, ref)
+        if sprite is not None and key not in self._cache:
             if len(self._cache) >= self.cache_limit:      # 只留最近用过的，别把整套帧常驻
                 self._cache.pop(next(iter(self._cache)))
-            self._cache[ref] = sprite
+            self._cache[key] = sprite
         return sprite
 
     # ── 合成到画布 ──────────────────────────────────────────────────────
