@@ -27,8 +27,11 @@ check_python_version()
 import os
 import signal
 import sys
+import tempfile
 import time
 from datetime import datetime
+
+from PIL import Image, ImageDraw
 
 # Import only the modules for LCD communication
 from library.lcd.lcd_comm_rev_a import LcdCommRevA, Orientation
@@ -40,6 +43,29 @@ from library.lcd.lcd_comm_weact_a import LcdCommWeActA
 from library.lcd.lcd_comm_weact_b import LcdCommWeActB
 from library.lcd.lcd_simulated import LcdSimulated
 from library.log import logger
+
+
+def ensure_example_background(width: int, height: int) -> str:
+    """Return the path of the example background picture, generating one when res/ is not available.
+
+    res/ assets (backgrounds, fonts, themes) are not shipped with this repository: see docs/AI-GUIDE.md.
+    A clean checkout must still be able to run this sample, so a plain gradient is drawn when needed.
+    """
+    path = f"res/backgrounds/example_{width}x{height}.png"
+    if os.path.isfile(path):
+        return path
+
+    fallback_path = os.path.join(tempfile.gettempdir(), f"lcdmuse-example-background_{width}x{height}.png")
+    fallback = Image.new("RGB", (width, height))
+    draw = ImageDraw.Draw(fallback)
+    for y in range(height):
+        # Vertical gradient, no external asset needed
+        draw.line([(0, y), (width, y)],
+                  fill=(20 + 60 * y // height, 30 + 40 * y // height, 90 + 60 * y // height))
+    fallback.save(fallback_path)
+    logger.warning("%s not found: generated a plain background in %s instead" % (path, fallback_path))
+    return fallback_path
+
 
 # Set your COM port e.g. COM3 for Windows, /dev/ttyACM0 for Linux, etc.
 # Use AUTO for COM port auto-discovery (may not work on every setup) or if device is not detected as a COM port
@@ -121,8 +147,8 @@ if __name__ == "__main__":
     # Set orientation (screen starts in Portrait)
     lcd_comm.SetOrientation(orientation=Orientation.LANDSCAPE)
 
-    # Define background picture
-    background = f"res/backgrounds/example_{lcd_comm.get_width()}x{lcd_comm.get_height()}.png"
+    # Define background picture (generated when res/ is not part of the checkout)
+    background = ensure_example_background(lcd_comm.get_width(), lcd_comm.get_height())
 
     # Display sample picture
     logger.debug("setting background picture")

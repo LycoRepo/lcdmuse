@@ -1,0 +1,45 @@
+name: Fetch theme assets
+description: >
+  Fetch the subset of upstream res/ assets needed by the system monitor tests.
+  res/ (~1 GB of fonts and themes) is not shipped with this repository:
+  see docs/AI-GUIDE.md section 12. Only ~10 MB is downloaded here.
+
+inputs:
+  upstream-repository:
+    description: Repository the assets are fetched from
+    required: false
+    default: https://github.com/mathoudebine/turing-smart-screen-python.git
+  upstream-commit:
+    description: Upstream commit to fetch, pinned so the tests stay reproducible
+    required: false
+    default: 866e5ba999de0ed9373a46b6f2a714ef8322cfce
+  destination:
+    description: Directory the res/ folder is copied into
+    required: false
+    default: .
+
+runs:
+  using: composite
+  steps:
+    - name: Sparse checkout of upstream res/
+      shell: bash
+      run: |
+        set -euo pipefail
+        checkout_dir="$RUNNER_TEMP/turing-upstream-assets"
+        rm -rf "$checkout_dir"
+        git init -q "$checkout_dir"
+        cd "$checkout_dir"
+        git remote add origin "${{ inputs.upstream-repository }}"
+        # Only the assets used by the tests are fetched (fonts, one theme, one icon)
+        git sparse-checkout set --no-cone \
+          '/res/themes/default.yaml' \
+          '/res/themes/3.5inchTheme2/' \
+          '/res/icons/monitor-icon-17865/' \
+          '/res/fonts/roboto/' \
+          '/res/fonts/roboto-mono/' \
+          '/res/fonts/geforce/' \
+          '/res/fonts/jetbrains-mono/'
+        git fetch -q --depth 1 --filter=blob:none origin "${{ inputs.upstream-commit }}"
+        git checkout -q FETCH_HEAD
+        cp -r res "${{ inputs.destination }}/"
+        du -sh "${{ inputs.destination }}/res"

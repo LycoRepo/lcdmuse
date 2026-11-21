@@ -34,10 +34,17 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install -r requirements.txt
 
+    - name: Fetch theme assets
+      # res/ is not shipped with this repository: fetch the fonts/theme needed by the tests
+      uses: ./.github/actions/fetch-theme-assets
+
     - name: Configure system monitor
       run: |
         # For tests there is no real HW: use simulated LCD mode
         (Get-Content config.yaml) -replace "^  REVISION.*$","  REVISION: SIMU" | Set-Content  config.yaml
+
+        # For tests there is no real HW: use stub sensors instead of LibreHardwareMonitor
+        (Get-Content config.yaml) -replace "^  HW_SENSORS.*$","  HW_SENSORS: STUB" | Set-Content  config.yaml
         
         # Setup selected theme in config.yaml
         echo "Using theme ${{ matrix.theme }}"
@@ -45,7 +52,7 @@ jobs:
 
     - name: Run system monitor for 20 seconds
       run: |
-        Start-Process -NoNewWindow python3 main.py -RedirectStandardOutput output.log -RedirectStandardError error.log
+        Start-Process -NoNewWindow python3 -u main.py -RedirectStandardOutput output.log -RedirectStandardError error.log
         sleep 20
         add-content output.log (get-content error.log)
 

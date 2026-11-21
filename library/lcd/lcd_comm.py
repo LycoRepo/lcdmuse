@@ -28,7 +28,7 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from enum import IntEnum
-from typing import Tuple, List, Optional, Dict
+from typing import Tuple, List, Optional, Dict, cast
 
 import serial
 from PIL import Image, ImageDraw, ImageFont
@@ -752,5 +752,18 @@ class LcdComm(ABC):
 
     def open_font(self, name: str, size: int) -> ImageFont.FreeTypeFont:
         if (name, size) not in self.font_cache:
-            self.font_cache[(name, size)] = ImageFont.truetype(name, size)
+            if name and os.path.isfile(name):
+                self.font_cache[(name, size)] = ImageFont.truetype(name, size)
+            else:
+                # Font files are not shipped with the repository (see docs/AI-GUIDE.md):
+                # render with a built-in font instead of failing the whole program
+                logger.warning("Font %s not found, using the built-in font instead" % name)
+                self.font_cache[(name, size)] = cast(ImageFont.FreeTypeFont, self.default_font(size))
         return self.font_cache[(name, size)]
+
+    @staticmethod
+    def default_font(size: int) -> ImageFont.ImageFont:
+        try:
+            return cast(ImageFont.ImageFont, ImageFont.load_default(size=size))
+        except TypeError:  # Pillow < 10.1 does not support a font size here
+            return ImageFont.load_default()

@@ -39,7 +39,7 @@ jobs:
         sed -i "" "s|^REVISION.*$|REVISION=\"SIMU\"|g" simple-program.py
         
         # Run the program for 20s
-        python3 simple-program.py > output.log 2>&1 &
+        python3 -u simple-program.py > output.log 2>&1 &
         sleep 20
 
     - name: Check output for errors
