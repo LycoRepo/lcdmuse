@@ -46,6 +46,8 @@ class Pet:
     source: Mapping[str, Any] = field(default_factory=dict)
     _state: str = "idle"
     _started: float = 0.0
+    cache_limit: int = 8
+    _cache: dict[Any, Image.Image] = field(default_factory=dict)   # 解码过的帧，别每帧读盘
 
     # ── 加载 ────────────────────────────────────────────────────────────
     @classmethod
@@ -109,8 +111,15 @@ class Pet:
         st = self._resolve(now)
         idx = int((now - self._started) * st.fps)
         idx = idx % len(st.frames) if st.loop else min(idx, len(st.frames) - 1)
-        with Image.open(st.frames[idx]) as im:
-            return im.convert("RGBA")
+        path = st.frames[idx]
+        sprite = self._cache.get(path)
+        if sprite is None:
+            with Image.open(path) as im:
+                sprite = im.convert("RGBA")
+            if len(self._cache) >= self.cache_limit:      # 只留最近用过的，别把整套帧常驻
+                self._cache.pop(next(iter(self._cache)))
+            self._cache[path] = sprite
+        return sprite
 
     # ── 合成到画布 ──────────────────────────────────────────────────────
     def anchor_xy(self, canvas_w: int, canvas_h: int, sprite: Image.Image) -> tuple[int, int]:

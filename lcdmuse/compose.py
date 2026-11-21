@@ -49,9 +49,11 @@ class Composition:
             try:
                 sprite = self.pet.frame_at(now)
                 x, y = self.pet.anchor_xy(canvas.width, canvas.height, sprite)
-                canvas = canvas.convert("RGBA")
-                canvas.alpha_composite(sprite, (max(0, x), max(0, y)))
-                canvas = canvas.convert("RGB")
+                if canvas.mode != "RGB":
+                    canvas = canvas.convert("RGB")
+                # 只贴桌宠那一小块：paste 用 sprite 自己的 alpha 当蒙版，
+                # 比整幅转 RGBA 再 alpha_composite 省两次全画布拷贝
+                canvas.paste(sprite, (max(0, x), max(0, y)), sprite)
             except Exception as exc:
                 log.warning("桌宠合成失败（%s）: %s", getattr(self.pet, "name", "?"), exc)
         return canvas

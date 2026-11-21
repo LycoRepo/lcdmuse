@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 from typing import Iterator, Literal
 
-import numpy as np
 from PIL import Image
 
 
@@ -11,6 +10,8 @@ def chunked(data: bytes, chunk_size: int) -> Iterator[bytes]:
 
 
 def image_to_RGB565(image: Image.Image, endianness: Literal["big", "little"]) -> bytes:
+
+    import numpy as np              # 惰性导入：OpenBLAS 会按线程预留内存
     if image.mode not in ["RGB", "RGBA"]:
         # we need the first 3 channels to be R, G and B
         image = image.convert("RGB")
@@ -41,6 +42,7 @@ def image_to_RGB565(image: Image.Image, endianness: Literal["big", "little"]) ->
 
 
 def image_to_BGR(image: Image.Image) -> (bytes, int):
+    import numpy as np              # 惰性导入：OpenBLAS 会按线程预留内存
     if image.mode not in ["RGB", "RGBA"]:
         # we need the first 3 channels to be R, G and B
         image = image.convert("RGB")
@@ -51,6 +53,8 @@ def image_to_BGR(image: Image.Image) -> (bytes, int):
 
 
 def image_to_BGRA(image: Image.Image) -> (bytes, int):
+
+    import numpy as np              # 惰性导入：OpenBLAS 会按线程预留内存
     if image.mode != "RGBA":
         image = image.convert("RGBA")
     rgba = np.asarray(image)
