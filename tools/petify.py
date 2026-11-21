@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """把表情包 GIF 变成桌宠帧：去标签、抠透明底、裁边、缩放到目标尺寸。
 
 用法：

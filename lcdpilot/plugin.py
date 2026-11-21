@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """插件加载：扫 `drivers/<id>/driver.yaml`，动态导入，校验契约版本与依赖。
 
 刻意不用 entry_points / pip 安装：从源码目录跑的桌面程序，"拷一个目录就多一个驱动"更好维护。

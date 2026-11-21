@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """驱动契约（原 `library/lcd/lcd_comm.py` 的抽象层，保留文件名）。
 
 只描述「一台设备」与「一帧画面」，不含任何具体协议、VID/PID、波特率。
