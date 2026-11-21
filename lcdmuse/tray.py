@@ -12,6 +12,7 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
+from typing import Any
 
 from PIL import Image, ImageDraw
 
@@ -168,6 +169,25 @@ def run_tray(cfg: Config, plugin_id: str = "", interval: float = 0.2,
             p.set_pet((cfg.default_pet or "whale-girl") if enable else None)
         refresh()
 
+    desk_proc: dict[str, Any] = {}
+
+    def on_toggle_desktop_pet(icon_: pystray.Icon, item) -> None:
+        proc = desk_proc.get("proc")
+        if proc is not None and proc.poll() is None:      # 已在跑 → 关掉
+            with contextlib.suppress(Exception):
+                proc.terminate()
+            desk_proc["proc"] = None
+            return
+        import subprocess
+        import sys as _sys
+        desk_proc["proc"] = subprocess.Popen(
+            [_sys.executable, "-m", "lcdmuse.cli", "pet", "--pet", cfg.default_pet or "whale-girl"],
+            cwd=str(Path(__file__).resolve().parent.parent))
+
+    def desk_pet_running() -> bool:
+        proc = desk_proc.get("proc")
+        return bool(proc is not None and proc.poll() is None)
+
     def on_plugins(icon_: pystray.Icon, item) -> None:
         _open_path(cfg.ensure_user_drivers())
 
@@ -175,6 +195,10 @@ def run_tray(cfg: Config, plugin_id: str = "", interval: float = 0.2,
         _open_path(Path(cfg.out_dir).parent / "logs")
 
     def on_quit(icon_: pystray.Icon, item) -> None:
+        proc = desk_proc.get("proc")
+        if proc is not None and proc.poll() is None:
+            with contextlib.suppress(Exception):
+                proc.terminate()
         with contextlib.suppress(Exception):
             server.shutdown()
         for p in players:
@@ -193,8 +217,10 @@ def run_tray(cfg: Config, plugin_id: str = "", interval: float = 0.2,
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("暂停 / 继续", on_toggle_pause,
                          checked=lambda item: players[0].status.paused),
-        pystray.MenuItem("桌宠", on_toggle_pet,
+        pystray.MenuItem("屏上贴桌宠", on_toggle_pet,
                          checked=lambda item: players[0].pet_name is not None),
+        pystray.MenuItem("桌面桌宠", on_toggle_desktop_pet,
+                         checked=lambda item: desk_pet_running()),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("打开插件目录", on_plugins),
         pystray.MenuItem("打开日志", on_logs),
