@@ -39,7 +39,7 @@ jobs:
         (Get-Content simple-program.py) -replace "^REVISION.*$","REVISION=`"SIMU`"" | Set-Content  simple-program.py
         
         # Run the program for 20s
-        Start-Process -NoNewWindow python3 simple-program.py -RedirectStandardOutput output.log -RedirectStandardError error.log
+        Start-Process -NoNewWindow python3 -u simple-program.py -RedirectStandardOutput output.log -RedirectStandardError error.log
         sleep 20
         add-content output.log (get-content error.log)
 

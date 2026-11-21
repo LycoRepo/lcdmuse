@@ -181,6 +181,9 @@ git clone --depth 1 https://github.com/mathoudebine/turing-smart-screen-python /
 cp -r /tmp/tss/res ./res
 ```
 
+因此 `simple-program.py` 缺 `res/` 时会自己画一张纯色渐变背景、缺字库时退回内置字体（只警告，不崩）。
+CI 的 System monitor 测试不拉整份 `res/`：`.github/actions/fetch-theme-assets` 用稀疏检出只取主题/字库子集（约 10 MB，上游 commit 已 pin）。
+
 ## 13. 不要做
 
 - 不把型号、序列号、VID/PID、串口号写进 `lcdmuse/` 或文档正文。
