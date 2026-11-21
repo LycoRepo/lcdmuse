@@ -10,7 +10,7 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from collections.abc import Mapping
@@ -23,6 +23,32 @@ from lcdmuse.metrics import get_hub
 from lcdmuse.pet import Pet
 from lcdmuse.render.demo import render_demo
 from lcdmuse.theme import Theme
+
+
+def _fit_pet_size(pet, sprite: Image.Image, canvas_w: int, canvas_h: int,
+                  cache: dict, key) -> Image.Image:
+    """按画布高度比例缩放桌宠：同一只桌宠在 1480×720 和 960×480 上观感一致。
+
+    固定像素倍数（scale）在两种屏上差一倍多，所以推荐 fit_height：
+    角色高度 = fit_height × 屏幕高，同时宽度不超过画布的 55%，防止横图顶到数据面板。
+    """
+    ratio = getattr(pet, "fit_height", None)
+    if not ratio:
+        return sprite
+    target_h = max(8, int(canvas_h * float(ratio)))
+    target_w = max(8, int(sprite.width * target_h / max(1, sprite.height)))
+    max_w = max(8, int(canvas_w * 0.55))
+    if target_w > max_w:
+        target_w = max_w
+        target_h = max(8, int(sprite.height * target_w / max(1, sprite.width)))
+    cache_key = (key, target_w, target_h)
+    cached = cache.get(cache_key)
+    if cached is None:
+        cached = sprite.resize((target_w, target_h), Image.Resampling.LANCZOS)
+        if len(cache) > 24:
+            cache.clear()
+        cache[cache_key] = cached
+    return cached
 
 
 def _micro_motion(sprite: Image.Image, state: str, now: float):
@@ -58,6 +84,12 @@ class Composition:
     pet: Pet | None = None
     background: MediaSource | None = None
     font_dir: Path | None = None
+    _pet_sizes: dict[Any, Image.Image] = field(default_factory=dict, repr=False)
+
+    def _fit_pet(self, sprite: Image.Image, canvas_w: int, canvas_h: int,
+                 step: int | None) -> Image.Image:
+        key = (self.pet.state if self.pet else "", step, sprite.size)
+        return _fit_pet_size(self.pet, sprite, canvas_w, canvas_h, self._pet_sizes, key)
 
     def render(self, size: tuple[int, int], now: float | None = None,
                metrics: Mapping[str, Any] | None = None,
@@ -78,6 +110,7 @@ class Composition:
         if self.pet is not None:
             try:
                 sprite = self.pet.frame_at(now, step=step)
+                sprite = self._fit_pet(sprite, canvas.width, canvas.height, step)
                 x, y = self.pet.anchor_xy(canvas.width, canvas.height, sprite)
                 if canvas.mode != "RGB":
                     canvas = canvas.convert("RGB")

@@ -5,6 +5,7 @@
   "api": 1,
   "anchor": "bottom-left",
   "margin": 16,
+  "fit_height": 0.62,
   "scale": 1.6,
   "micro_motion": false,
   "spritesheet": {

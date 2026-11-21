@@ -774,3 +774,28 @@ def test_pet_step_mode_advances_exactly_one_frame_per_push(tmp_path):
     for step in range(6):
         px = pet.frame_at(now=123.456, step=step).convert("RGB").getpixel((4, 4))
         assert abs(px[0] - (step % 4) * 60) <= 8, f"第 {step} 次推帧取到了 {px}"   # webp 有损，留容差
+
+
+def test_pet_fit_height_scales_with_canvas():
+    """fit_height：同一只桌宠在 960×480 和 1480×720 上占屏比例一致（不是固定像素）。"""
+    import json
+    sheet = _Img.new("RGBA", (4 * 10, 20), (255, 0, 0, 255))
+    root = _Canvas = None
+    from pathlib import Path as _P
+    import tempfile
+    d = _P(tempfile.mkdtemp()) / "fitpet"
+    d.mkdir()
+    sheet.save(d / "sheet.webp")
+    (d / "pet.json").write_text(json.dumps({
+        "name": "fitpet", "kind": "pet", "api": 1, "fit_height": 0.5,
+        "spritesheet": {"path": "sheet.webp", "columns": 4, "rows": 1},
+        "states": {"idle": {"row": 0, "frames": 4, "fps": 4}},
+    }), encoding="utf-8")
+    from lcdmuse.pet import Pet
+    from lcdmuse.compose import Composition
+    pet = Pet.load(d)
+    comp = Composition(pet=pet)
+    for w, h in ((960, 480), (1480, 720)):
+        fitted = comp._fit_pet(pet.frame_at(1.0, step=0), w, h, 0)
+        assert abs(fitted.height - int(h * 0.5)) <= 2, f"{w}x{h} 高度 {fitted.height}"
+        assert fitted.width <= int(w * 0.55) + 2

@@ -55,7 +55,8 @@ class Pet:
     _started: float = 0.0
     cache_limit: int = 64
     _cache: dict[Any, Image.Image] = field(default_factory=dict)   # 解码过的帧，别每帧读盘
-    scale: float = 1.0                                            # 精灵图放大倍数（192px 的格子在小屏上太小）
+    scale: float = 1.0                                            # 固定像素倍数（老写法）
+    fit_height: float | None = None                               # 按画布高度比例缩放（跨屏一致，推荐）
     micro_motion: bool = True                                     # 帧少时叠加呼吸/抖动；帧密的精灵图应关掉
     sheet: Image.Image | None = None                              # 精灵图（一整张）
     sheet_columns: int = 1
@@ -115,6 +116,7 @@ class Pet:
                    margin=int(data.get("margin", 16)),
                    source=dict(data.get("source") or {}),
                    scale=float(data.get("scale", 1.0) or 1.0),
+                   fit_height=(float(data["fit_height"]) if data.get("fit_height") else None),
                    micro_motion=bool(data.get("micro_motion", sheet is None)),
                    sheet=sheet, sheet_columns=columns, frame_size=frame_size)
 
