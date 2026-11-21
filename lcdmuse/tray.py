@@ -17,7 +17,7 @@ from PIL import Image, ImageDraw
 
 from lcdmuse.config import APP_NAME, Config, log
 from lcdmuse.player import Player
-from lcdmuse.ui import ControlWindow
+from lcdmuse.webui import start_server
 import contextlib
 
 _ACCENT = (90, 210, 255)
@@ -73,6 +73,31 @@ class SingleInstance:
                 self._lockfile.unlink()
 
 
+def _ui_command(url: str) -> list[str]:
+    """优先用 Edge/Chrome 的 --app 窗口（没有地址栏，像个真程序）；找不到就用默认浏览器。"""
+    flags = [f"--app={url}", "--window-size=1200,780"]
+    if os.name == "nt":
+        for exe in (r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+                    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+                    r"C:\Program Files\Google\Chrome\Application\chrome.exe"):
+            if Path(exe).exists():
+                return [exe, *flags, "--user-data-dir=" + str(Path(os.environ.get("LOCALAPPDATA", "."))
+                                                            / "lcdmuse" / "ui-profile")]
+        return ["cmd", "/c", "start", "", url]
+    if sys.platform == "darwin":
+        return ["open", url]
+    return ["xdg-open", url]
+
+
+def open_ui(url: str) -> None:
+    cmd = _ui_command(url)
+    try:
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except Exception as exc:
+        log.warning("打开界面失败 %s: %s", url, exc)
+
+
 def _open_path(path: Path) -> None:
     try:
         if os.name == "nt":
@@ -110,14 +135,14 @@ def run_tray(cfg: Config, plugin_id: str = "", interval: float = 1.0,
         with contextlib.suppress(Exception):
             icon.stop()
 
-    window = ControlWindow(players, cfg, on_quit=_quit_all)
-    window.start()
+    server, port = start_server(players, cfg, on_quit=_quit_all)
+    url = f"http://127.0.0.1:{port}/"
     if os.environ.get(f"{APP_NAME.upper()}_SHOW_WINDOW", "1") == "1":
-        # 默认开机就把面板亮出来（托盘模式也方便第一次看见）；设成 0 则只留图标
-        threading.Timer(0.8, window.show).start()
+        # 默认把界面亮出来；设成 0 就只留托盘图标，点图标再开
+        threading.Timer(1.2, lambda: open_ui(url)).start()
 
     def on_open(icon_: pystray.Icon, item) -> None:
-        window.show()
+        open_ui(url)
 
     def refresh() -> None:
         running = any(p.status.running for p in players)
@@ -150,7 +175,8 @@ def run_tray(cfg: Config, plugin_id: str = "", interval: float = 1.0,
         _open_path(Path(cfg.out_dir).parent / "logs")
 
     def on_quit(icon_: pystray.Icon, item) -> None:
-        window.close()
+        with contextlib.suppress(Exception):
+            server.shutdown()
         for p in players:
             p.stop()
         icon_.stop()
@@ -188,6 +214,8 @@ def run_tray(cfg: Config, plugin_id: str = "", interval: float = 1.0,
         icon.run()
     finally:
         stop_tick.set()
+        with contextlib.suppress(Exception):
+            server.shutdown()
         for p in players:
             p.stop()
         guard.release()

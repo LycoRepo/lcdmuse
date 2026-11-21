@@ -7,6 +7,7 @@ import sys
 import textwrap
 from pathlib import Path
 
+import io
 import pytest
 
 REPO = Path(__file__).resolve().parent.parent
@@ -358,3 +359,70 @@ def test_device_name_alias_is_persisted(tmp_path):
     # 改回空 = 删掉自定义
     again.set_device_name("sama_s300", "", cfg_path)
     assert Config.load(cfg_path).name_for("sama_s300", "TXW818") == "TXW818"
+
+
+class _DummyPlayer:
+    """只给 Web 控制台测试用：不碰硬件，状态和帧都是假的。"""
+
+    def __init__(self, cfg, pid="fake_dev", device="FakeDevice"):
+        from lcdmuse.player import PlayerStatus
+        self.cfg = cfg
+        self.plugin_id = pid
+        self.pet_name = "whale-girl"
+        self.status = PlayerStatus(plugin=pid, device=device, size=(960, 480),
+                                   running=True, frames=7, fps=1.0)
+        from PIL import Image as _Img
+        self.last_image = _Img.new("RGB", (960, 480), (10, 20, 30))
+
+    def set_pet(self, name):
+        self.pet_name = name or None
+        self.status.pet = self.pet_name
+
+
+def test_web_control_console_serves_state_and_preview(tmp_path):
+    import json
+    import urllib.request
+
+    from PIL import Image as _Image
+
+    from lcdmuse.config import Config
+    from lcdmuse.webui import start_server
+
+    yaml_path = tmp_path / "lcdmuse.yaml"
+    yaml_path.write_text("theme: x\n", encoding="utf-8")
+
+    cfg = Config()
+    cfg.path = yaml_path
+    cfg.user_drivers_dir = tmp_path / "drivers"
+    player = _DummyPlayer(cfg)
+    server, port = start_server([player], cfg)
+
+    try:
+        base = f"http://127.0.0.1:{port}"
+        page = urllib.request.urlopen(base + "/", timeout=5).read().decode()
+        assert "lcdmuse" in page and "屏幕预览" in page
+
+        state = json.loads(urllib.request.urlopen(base + "/api/status", timeout=5).read())
+        assert state["devices"][0]["plugin"] == "fake_dev"
+        assert state["devices"][0]["size"] == [960, 480]
+        assert state["devices"][0]["frames"] == 7
+
+        png = urllib.request.urlopen(base + "/api/preview?i=0", timeout=5).read()
+        assert png[:8] == b"\x89PNG\r\n\x1a\n"
+        assert _Image.open(io.BytesIO(png)).size == (960, 480)
+
+        def post(path, payload):
+            req = urllib.request.Request(base + path, data=json.dumps(payload).encode(),
+                                         headers={"Content-Type": "application/json"})
+            return json.loads(urllib.request.urlopen(req, timeout=5).read())
+
+        assert post("/api/pause", {})["paused"] is True
+        assert player.status.paused is True
+        assert post("/api/pause", {"paused": False})["paused"] is False
+        assert post("/api/pet", {"enabled": False})["enabled"] is False
+        assert player.pet_name is None
+
+        assert post("/api/rename", {"index": 0, "name": "机箱大屏"})["alias"] == "机箱大屏"
+        assert Config.load(yaml_path).name_for("fake_dev") == "机箱大屏"
+    finally:
+        server.shutdown()
