@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""命令行入口：lcdmuse drivers / probe / render / pets / plugin。
+"""命令行入口：lcdmuse drivers / probe / render / pets / plugin / tray。
 
 阶段 1 只到「契约 + 渲染 + 模拟驱动」，daemon / MCP 在阶段 5。
 """
@@ -139,6 +139,13 @@ def cmd_plugin_dir(args: argparse.Namespace, cfg: Config) -> int:
     return 0
 
 
+def cmd_tray(args: argparse.Namespace, cfg: Config) -> int:
+    """托盘常驻：把玩家循环挂到右下角，右键菜单能暂停/开关桌宠/退出。"""
+    from lcdmuse.tray import run_tray
+    pet = None if args.pet in ("none", "off") else (args.pet or cfg.default_pet)
+    return run_tray(cfg, args.plugin or "", interval=args.interval, pet=pet)
+
+
 def cmd_pets_list(args: argparse.Namespace, cfg: Config) -> int:
     root = Path(cfg.pets_dir)
     names = list_pets(root)
@@ -209,6 +216,12 @@ def build_parser() -> argparse.ArgumentParser:
     pgr.set_defaults(func=cmd_plugin_remove)
     pgd = pgsub.add_parser("dir", help="打印用户插件目录（不存在则创建）")
     pgd.set_defaults(func=cmd_plugin_dir)
+
+    tr = sub.add_parser("tray", help="托盘常驻（右键菜单：暂停/桌宠/退出）")
+    tr.add_argument("--plugin", default="", help="留空自动探测设备")
+    tr.add_argument("--interval", type=float, default=1.0, help="推帧间隔（秒）")
+    tr.add_argument("--pet", default="", help="桌宠名；传 none 表示关掉桌宠")
+    tr.set_defaults(func=cmd_tray)
 
     pe = sub.add_parser("pets", help="桌宠相关")
     pesub = pe.add_subparsers(dest="sub", required=True)
