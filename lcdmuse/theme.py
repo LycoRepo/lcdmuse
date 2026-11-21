@@ -197,8 +197,11 @@ class Theme:
             canvas.alpha_composite(mask)
             canvas = canvas.convert("RGB")
 
+        # 设计画布 → 实际分辨率：坐标与字号按比例放大，别让 1480×720 上只用左边 2/3
+        design = self.size or size
+        sx, sy = size[0] / design[0], size[1] / design[1]
         for item in self.overlay:
-            self._draw_item(canvas, item, values, size, font_dir)
+            self._draw_item(canvas, item, values, size, font_dir, sx, sy)
 
         if self._hook is not None:
             try:
@@ -209,13 +212,17 @@ class Theme:
         return canvas
 
     def _draw_item(self, canvas: Image.Image, item: Mapping[str, Any], values: Mapping[str, Any],
-                   size: tuple[int, int], font_dir: Path | None) -> None:
+                   size: tuple[int, int], font_dir: Path | None,
+                   sx: float = 1.0, sy: float = 1.0) -> None:
+        scale = min(sx, sy)
         draw = ImageDraw.Draw(canvas, "RGBA")
         if "rect" in item:
             spec = item["rect"] or {}
             x, y = spec.get("at") or (spec.get("x", 0), spec.get("y", 0))
+            x, y = float(x) * sx, float(y) * sy
             w, h = spec.get("size") or (spec.get("w", 0), spec.get("h", 0))
-            radius = int(spec.get("radius", 0))
+            w, h = float(w) * sx, float(h) * sy
+            radius = int(float(spec.get("radius", 0)) * scale)
             fill = _color(spec.get("fill"), "#00000000")
             outline = _color(spec.get("outline"), "#00000000")
             box = [int(x), int(y), int(x) + int(w), int(y) + int(h)]
@@ -238,7 +245,9 @@ class Theme:
             if spec.get("upper"):
                 text = text.upper()
             x, y = spec.get("at") or (spec.get("x", 0), spec.get("y", 0))
-            font = _font(int(spec.get("size", 22)), bool(spec.get("bold")), font_dir)
+            x, y = float(x) * sx, float(y) * sy
+            font = _font(max(6, int(float(spec.get("size", 22)) * scale)),
+                         bool(spec.get("bold")), font_dir)
             fill = _color(spec.get("color"), "#e8eef5")
             anchor = str(spec.get("anchor") or "la")
             draw.text((int(x), int(y)), text, font=font, fill=fill, anchor=anchor)
@@ -251,8 +260,9 @@ class Theme:
             except (TypeError, ValueError):
                 ratio = 0.0
             ratio = max(0.0, min(1.0, ratio))
-            x, y, w, h = (int(v) for v in (spec.get("box") or [0, 0, 100, 8])[:4])
-            radius = min(h // 2, int(spec.get("radius", h // 2)))
+            x, y, w, h = (float(v) for v in (spec.get("box") or [0, 0, 100, 8])[:4])
+            x, y, w, h = int(x * sx), int(y * sy), int(w * sx), max(1, int(h * sy))
+            radius = min(h // 2, int(float(spec.get("radius", h // 2)) * scale))
             draw.rounded_rectangle([x, y, x + w, y + h], radius=radius,
                                    fill=_color(spec.get("track"), "#1b2634"))
             filled = int(w * ratio)
@@ -266,7 +276,9 @@ class Theme:
             if not path or not path.exists():
                 return
             x, y = spec.get("at") or (0, 0)
+            x, y = float(x) * sx, float(y) * sy
             target = spec.get("size")
+            target = (float(target[0]) * sx, float(target[1]) * sy) if target else None
             with Image.open(path) as im:
                 img = im.convert("RGBA")
             if target:
