@@ -206,6 +206,8 @@ class Player:
         # 多屏巡游：桌宠由全局 RoamingPet 决定此刻在谁身上、画在哪
         pet_draw = None
         hide_pet = False
+        if self.single_pet:
+            hide_pet = True                          # 单宠模式：本屏的桌宠只能由 roamer 给
         if self.roamer is not None and self.roamer.pet is not None:
             pet_draw = self.roamer.draw_on(self.plugin_id or "", inner[0], inner[1],
                                            step or 0)
@@ -261,6 +263,7 @@ class Player:
         return self._background_path
 
     roamer: Any = None                     # RoamingPet：多屏共用一只桌宠
+    single_pet: bool = False               # True = 屏上只允许这一只（不再每屏各画一只）
 
     def _pet_obj(self) -> Pet | None:
         if self._pet is None and self.pet_name:

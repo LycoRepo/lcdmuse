@@ -25,6 +25,37 @@ from lcdmuse.render.demo import render_demo
 from lcdmuse.theme import Theme
 
 
+def _bubble_font(size: int):
+    from PIL import ImageFont
+    for name in ("msyh.ttc", "msyhbd.ttc", "simhei.ttf"):
+        try:
+            return ImageFont.truetype(name, size)
+        except Exception:                             # noqa: BLE001 - 换下一个字体
+            continue
+    return ImageFont.load_default()
+
+
+def _draw_bubble(canvas: Image.Image, x: int, y: int, sprite_w: int, text: str) -> None:
+    """在角色头顶画一句短话（圆角气泡 + 小尾巴），3 fps 下也看得清。"""
+    from PIL import ImageDraw
+
+    size = max(12, int(canvas.height / 34))
+    font = _bubble_font(size)
+    draw = ImageDraw.Draw(canvas, "RGBA")
+    pad_x, pad_y = int(size * 0.6), int(size * 0.35)
+    box = draw.textbbox((0, 0), text, font=font)
+    tw, th = box[2] - box[0], box[3] - box[1]
+    bw, bh = tw + pad_x * 2, th + pad_y * 2
+    bx = max(2, min(canvas.width - bw - 2, x + sprite_w // 2 - bw // 2))
+    by = max(2, y - bh - int(size * 0.5))
+    draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=int(size * 0.5),
+                           fill=(12, 22, 34, 232), outline=(120, 210, 255, 200), width=2)
+    tail = int(size * 0.35)
+    draw.polygon([(bx + bw // 2 - tail, by + bh), (bx + bw // 2 + tail, by + bh),
+                  (bx + bw // 2, by + bh + tail)], fill=(12, 22, 34, 232))
+    draw.text((bx + pad_x, by + pad_y - box[1]), text, font=font, fill=(226, 244, 255))
+
+
 def _fit_pet_size(pet, sprite: Image.Image, canvas_w: int, canvas_h: int,
                   cache: dict, key) -> Image.Image:
     """按画布高度比例缩放桌宠：同一只桌宠在 1480×720 和 960×480 上观感一致。
@@ -112,10 +143,13 @@ class Composition:
         if self.pet is not None and not hide_pet:
             try:
                 if pet_draw is not None:                 # 由 RoamingPet 指定位置（多屏巡游）
-                    sprite, px, py = pet_draw
+                    px, py = pet_draw.x, pet_draw.y
+                    sprite = pet_draw.sprite
                     if canvas.mode != "RGB":
                         canvas = canvas.convert("RGB")
                     canvas.paste(sprite, (max(0, px), max(0, py)), sprite)
+                    if getattr(pet_draw, "bubble", ""):
+                        _draw_bubble(canvas, px, py, sprite.width, pet_draw.bubble)
                     return canvas
                 sprite = self.pet.frame_at(now, step=step)
                 sprite = self._fit_pet(sprite, canvas.width, canvas.height, step)
