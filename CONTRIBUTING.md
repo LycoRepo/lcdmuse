@@ -1,4 +1,4 @@
-# 参与 lcdpilot
+# 参与 lcdmuse
 
 先读 [`docs/AI-GUIDE.md`](docs/AI-GUIDE.md) —— 里面是硬规矩、契约和验收命令，比这份更细。
 
@@ -12,18 +12,18 @@
 
 ## 硬门槛（不满足就不合）
 
-1. `lcdpilot/` 里不得出现设备知识：VID/PID、型号名、命令字、协议魔数、波特率常量、串口名。
-2. `lcdpilot/` 不得 `import drivers.*`；只经 `lcdpilot/plugin.py` 动态加载。
+1. `lcdmuse/` 里不得出现设备知识：VID/PID、型号名、命令字、协议魔数、波特率常量、串口名。
+2. `lcdmuse/` 不得 `import drivers.*`；只经 `lcdmuse/plugin.py` 动态加载。
 3. 界面与文案默认中文。
 4. 不依赖本机绝对路径、不依赖个人环境。
 
 改完自己跑一遍：
 
 ```bash
-python -m lcdpilot.cli drivers list
-python -m lcdpilot.cli render --offline --pet whale-girl --out out/preview.png
+python -m lcdmuse.cli drivers list
+python -m lcdmuse.cli render --offline --pet whale-girl --out out/preview.png
 python -m pytest tests/test_stage1.py -q
-python -m ruff check lcdpilot drivers/*/driver.py tools/petify.py tools/pet_preview.py tests/test_stage1.py
+python -m ruff check lcdmuse drivers/*/driver.py tools/petify.py tools/pet_preview.py tests/test_stage1.py
 ```
 
 四条都过再提 PR。

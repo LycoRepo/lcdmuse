@@ -9,17 +9,38 @@ from collections.abc import Mapping
 
 from dataclasses import replace
 
-from lcdpilot.lcd_comm import DeviceInfo, LcdComm, LcdError, DeviceNotFound
-from lcdpilot.plugin import DriverPlugin, load_plugins
+from lcdmuse.config import default_user_drivers_dir, log
+from lcdmuse.lcd_comm import DeviceInfo, LcdComm, LcdError, DeviceNotFound
+from lcdmuse.plugin import DriverPlugin, load_plugins
 
 _SYS = {"windows": "windows", "darwin": "darwin"}.get(platform.system().lower(),
                                                       platform.system().lower())
 
 
 class Registry:
-    def __init__(self, driver_root: Path | str):
-        self.driver_root = Path(driver_root)
-        self.plugins: list[DriverPlugin] = load_plugins(self.driver_root)
+    """多驱动根：用户目录在前，同 id 时用户插件覆盖仓库自带的。"""
+
+    def __init__(self, driver_roots: Path | str | list[Path | str] | tuple[Path | str, ...]):
+        roots = [driver_roots] if isinstance(driver_roots, (str, Path)) else list(driver_roots)
+        self.driver_roots = [Path(r) for r in roots]
+        builtin_root = find_driver_root()
+        self.plugins: list[DriverPlugin] = []
+        seen: dict[str, DriverPlugin] = {}
+        for root in self.driver_roots:
+            origin = "builtin" if root == builtin_root else "user"
+            for plugin in load_plugins(root, origin=origin):
+                if plugin.id in seen:
+                    prev = seen[plugin.id]
+                    log.warning("插件 id 重复，跳过 %s（%s，已被 %s 覆盖）",
+                                plugin.id, plugin.path, prev.path)
+                    continue
+                seen[plugin.id] = plugin
+                self.plugins.append(plugin)
+
+    @property
+    def driver_root(self) -> Path:
+        """兼容旧调用：返回仓库自带的那个根。"""
+        return self.driver_roots[-1]
 
     # ── 枚举 ────────────────────────────────────────────────────────────
     def available(self, include_unavailable: bool = False) -> list[DriverPlugin]:
@@ -84,3 +105,8 @@ def find_driver_root(start: Path | None = None) -> Path:
     """默认在仓库根下的 drivers/。"""
     here = start or Path(__file__).resolve().parent.parent
     return Path(here) / "drivers"
+
+
+def find_user_driver_root() -> Path:
+    """用户插件目录：%APPDATA%\\lcdmuse\\drivers（Linux/macOS 为 ~/.config/lcdmuse/drivers）。"""
+    return default_user_drivers_dir()

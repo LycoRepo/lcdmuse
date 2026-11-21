@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lcdpilot"
+name = "lcdmuse"
 version = "0.1.0"
 description = "小尺寸 USB 副屏的显示管理内核：零驱动、插件式、中文界面、桌宠"
 readme = "README.md"
@@ -16,10 +16,10 @@ drivers = ["numpy", "pyusb", "pycryptodome"]
 dev = ["pytest>=8", "ruff>=0.6"]
 
 [project.scripts]
-lcdpilot = "lcdpilot.cli:main"
+lcdmuse = "lcdmuse.cli:main"
 
 [tool.setuptools]
-packages = ["lcdpilot", "lcdpilot.render", "lcdpilot.transport"]
+packages = ["lcdmuse", "lcdmuse.render", "lcdmuse.transport"]
 
 [tool.ruff]
 line-length = 120

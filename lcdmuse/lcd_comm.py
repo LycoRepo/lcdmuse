@@ -2,7 +2,7 @@
 """驱动契约（原 `library/lcd/lcd_comm.py` 的抽象层，保留文件名）。
 
 只描述「一台设备」与「一帧画面」，不含任何具体协议、VID/PID、波特率。
-绘制原语搬到 `lcdpilot/render/`，链路搬到 `lcdpilot/transport/`（见 DESIGN §9 偏差 2）。
+绘制原语搬到 `lcdmuse/render/`，链路搬到 `lcdmuse/transport/`（见 DESIGN §9 偏差 2）。
 """
 from __future__ import annotations
 

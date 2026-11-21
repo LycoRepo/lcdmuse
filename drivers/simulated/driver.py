@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 from collections.abc import Mapping
 
-from lcdpilot.lcd_comm import Capability, DeviceInfo, Frame, LcdComm
+from lcdmuse.lcd_comm import Capability, DeviceInfo, Frame, LcdComm
 
 
 class SimulatedDriver(LcdComm):

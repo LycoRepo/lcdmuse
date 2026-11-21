@@ -16,15 +16,16 @@
 
 | 路径 | 说明 |
 |---|---|
-| `lcdpilot/` | 新核心：契约（`lcd_comm.py`）、插件加载（`plugin.py`）、注册表（`registry.py`）、渲染（`render/`）、链路（`transport/`）、桌宠（`pet.py`）、配置（`config.py`）、CLI（`cli.py`） |
+| `lcdmuse/` | 新核心：契约（`lcd_comm.py`）、插件加载（`plugin.py`）、注册表（`registry.py`）、渲染（`render/`）、链路（`transport/`）、桌宠（`pet.py`）、配置（`config.py`）、CLI（`cli.py`） |
 | `drivers/<id>/` | 驱动插件：`simulated`（新写）、`turing_rev_a~d`、`turzx_usb`、`weact_a/b`（从 `library/lcd/` 移植的适配层） |
 | `drivers/_legacy/` | 上游 `library/lcd/` 的副本，仅作适配层依赖 |
+| `lcdmuse/plugin_store.py` | 用户插件目录的安装/卸载（目录或 zip，装完即时校验，失败回滚） |
 | `pets/` | 桌宠框架、默认桌宠 `whale-girl`、模板 `_template` |
 | `tools/petify.py`、`tools/pet_preview.py` | GIF 抽帧、预览合成 |
 | `tests/test_stage1.py` | 契约 / 插件 / 桌宠 / 「核心零设备知识」断言 |
 | `docs/AI-GUIDE.md` | 工作约定（合并了上游 `AGENTS.md` 仍在用的部分） |
 | `docs/STAGE1-STATUS.md` | 阶段状态与缺口 |
-| `pyproject.toml`、`lcdpilot.yaml` | 打包元数据与运行配置 |
+| `pyproject.toml`、`lcdmuse.yaml` | 打包元数据与运行配置 |
 
 ## 修改
 

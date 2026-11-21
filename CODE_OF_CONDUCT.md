@@ -1,6 +1,6 @@
 # 行为准则
 
-本项目（lcdpilot）的交流场合包括：Issue、PR、Discussion、提交信息与文档评论。
+本项目（lcdmuse）的交流场合包括：Issue、PR、Discussion、提交信息与文档评论。
 下面几条是底线，不分技术水平、不分角色。
 
 ## 我们希望

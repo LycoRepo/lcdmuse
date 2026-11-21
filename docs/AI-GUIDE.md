@@ -10,23 +10,23 @@
 ## 1. 这是什么东西
 
 把一块小 USB 屏（串口 CDC / USB HID）当第二显示器：采系统指标 → 画进画布 → 推帧到屏。
-三种用法：常驻程序（`lcdpilot`）、配置工具、主题编辑器。将来加 `lcdpilot-daemon` + `lcdpilot-mcp` 供别的程序（如 DSH）调用。
+三种用法：常驻程序（`lcdmuse`）、配置工具、主题编辑器。将来加 `lcdmuse-daemon` + `lcdmuse-mcp` 供别的程序（如 DSH）调用。
 
 **现状：两代代码并存。**
 
 | | 新栈（本仓主力） | 旧栈（上游遗留） |
 |---|---|---|
-| 包 | `lcdpilot/` | `library/` |
+| 包 | `lcdmuse/` | `library/` |
 | 驱动 | `drivers/<id>/` 插件，运行时才加载 | `library/lcd/lcd_comm_rev_*.py`，被 `library/display.py` 硬 import |
-| 入口 | `python -m lcdpilot.cli` | `main.py` / `configure.py` / `theme-editor.py` |
+| 入口 | `python -m lcdmuse.cli` | `main.py` / `configure.py` / `theme-editor.py` |
 | 状态 | 契约、插件、渲染、桌宠、CLI 已完成 | 仍能跑，但正在被替换 |
 
-**转换期规则**：新功能一律写进 `lcdpilot/`，不要往 `library/` 加东西；旧栈保持能用即可，等入口重写完（阶段 2）再整体删。
+**转换期规则**：新功能一律写进 `lcdmuse/`，不要往 `library/` 加东西；旧栈保持能用即可，等入口重写完（阶段 2）再整体删。
 
 ## 2. 四条硬规矩
 
-1. **核心零驱动**：`lcdpilot/` 里不许有 VID/PID、型号名、命令字、协议魔数、波特率常量、串口名。
-2. **核心不 import 驱动**：`lcdpilot/` 不 `import drivers.*`，只经 `lcdpilot/plugin.py` 动态加载。
+1. **核心零驱动**：`lcdmuse/` 里不许有 VID/PID、型号名、命令字、协议魔数、波特率常量、串口名。
+2. **核心不 import 驱动**：`lcdmuse/` 不 `import drivers.*`，只经 `lcdmuse/plugin.py` 动态加载。
 3. **中文优先**：界面与文案默认中文（i18n 后英文为次要语言）。
 4. **可发布**：不依赖本机绝对路径、不依赖个人环境，clone 下来就能跑。
 
@@ -44,13 +44,13 @@
 ```
 
 - 加载方式：`importlib` 在**同一进程内**挂载 `driver.py`，地址空间与核心共享；驱动不监听端口、不开自己的服务。
-- 谁是设备的唯一主人：将来 `lcdpilot-daemon` 独占串口/HID，所有调用方（CLI、GUI、MCP）都排队走它；`lcdpilot-mcp` 只是薄封装，自己一个字节都不碰设备。
+- 谁是设备的唯一主人：将来 `lcdmuse-daemon` 独占串口/HID，所有调用方（CLI、GUI、MCP）都排队走它；`lcdmuse-mcp` 只是薄封装，自己一个字节都不碰设备。
 - 因此同一块屏**同时只能被一个进程打开**；厂商软件（SAMA/AIGO 那种）在跑时，必须先从它手里把设备放出来。
 
 ## 4. 目录
 
 ```
-lcdpilot/                 核心（零驱动）
+lcdmuse/                 核心（零驱动）
   lcd_comm.py           契约：错误族、Capability、DeviceInfo、Frame、LcdComm
   plugin.py             扫 drivers/*/driver.yaml，校验 api 与 requires
   registry.py           枚举 → probe → open；enabled_by_default=false 默认不 probe
@@ -65,8 +65,10 @@ drivers/<id>/           driver.yaml + driver.py
 pets/<name>/            pet.json + frames/*.png
 tools/                  GIF 抽帧、预览合成
 tests/test_stage1.py    核心零硬件断言 + 契约/桌宠测试
-docs/                   阶段状态等
+docs/                   工作约定、阶段状态、改动清单
 library/                旧栈（待删，勿加新代码）
+# 用户插件目录（不在仓库里）
+%APPDATA%\lcdmuse\drivers          Windows；其它平台 ~/.config/lcdmuse/drivers
 ```
 
 ## 5. 契约要点（改这里等于改所有驱动）
@@ -80,10 +82,13 @@ library/                旧栈（待删，勿加新代码）
 ## 6. 加一个驱动
 
 1. `drivers/<id>/driver.yaml`：`id / name / version / api: 1 / entry: driver:类名 / requires / enabled_by_default`。
-2. `driver.py` 继承 `lcdpilot.lcd_comm.LcdComm`，实现 `probe/open/close/push_frame`。
-3. 串口用 `lcdpilot.transport.serial_link.SerialLink`，端口与波特率从 `self.config` 取。
+2. `driver.py` 继承 `lcdmuse.lcd_comm.LcdComm`，实现 `probe/open/close/push_frame`。
+3. 串口用 `lcdmuse.transport.serial_link.SerialLink`，端口与波特率从 `self.config` 取。
 4. **`requires` 写 import 名**（`serial` 不是 `pyserial`，`usb` 不是 `pyusb`），写错会永远显示"缺少依赖"。
-5. `python -m lcdpilot.cli drivers list` 确认 `available: true`。
+5. `python -m lcdmuse.cli drivers list` 确认 `available: true`。
+6. 不想动源码就把插件装到用户目录：`python -m lcdmuse.cli plugin add <目录|zip>`；
+   同 id 与仓库自带插件撞车时，**用户目录那份优先**，另一份只打 warning。
+7. 跨版本兼容写在 `driver.yaml` 的 `min_core`（如 `min_core: 0.2.0`）；核心版本低于它时插件只标「不可用」。
 
 ## 7. 加一个桌宠
 
@@ -95,16 +100,17 @@ library/                旧栈（待删，勿加新代码）
 ## 8. 验收命令（改前改后都跑）
 
 ```bash
-python -m lcdpilot.cli drivers list
-python -m lcdpilot.cli probe
-python -m lcdpilot.cli render --offline --pet whale-girl --out out/preview.png
+python -m lcdmuse.cli drivers list
+python -m lcdmuse.cli probe
+python -m lcdmuse.cli render --offline --pet whale-girl --out out/preview.png
+python -m lcdmuse.cli plugin list          # 用户目录里装了什么
 python -m pytest tests/test_stage1.py -q
 ```
 
 三条硬判据（已固化在测试里）：
 
-1. `lcdpilot/` 无设备标识：十六进制常量、`VID_`/`PID_`、`COM\d+`。
-2. `lcdpilot/` 无协议魔数与波特率常量。
+1. `lcdmuse/` 无设备标识：十六进制常量、`VID_`/`PID_`、`COM\d+`。
+2. `lcdmuse/` 无协议魔数与波特率常量。
 3. 删掉整个 `drivers/` 后，核心仍可 import、仍能 `render --offline` 出图。
 
 ## 9. 沿用的上游约定（对 `library/` 旧栈仍然有效）
@@ -177,7 +183,7 @@ cp -r /tmp/tss/res ./res
 
 ## 13. 不要做
 
-- 不把型号、序列号、VID/PID、串口号写进 `lcdpilot/` 或文档正文。
+- 不把型号、序列号、VID/PID、串口号写进 `lcdmuse/` 或文档正文。
 - 不在核心引 `numpy`/`pyusb` 这类重依赖，它们只属于具体驱动的 `requires`。
 - 不在设备所有者不在场时操作真实屏幕，不抢厂商软件占用的串口；自动化测试一律 `simulated` / `--offline`。
 - 不删上游版权与许可声明。
@@ -187,11 +193,11 @@ cp -r /tmp/tss/res ./res
 - `library/` 未删：`main.py` / `configure.py` / `theme-editor.py` 仍依赖它。
 - 原厂适配器的 `probe()` 依赖旧代码的串口枚举，未在真实硬件上验证。
 - `push_region` 未实现，能否支持取决于屏的协议。
-- `lcdpilot/service/`（daemon + IPC）与 `lcdpilot/mcp/` 未开工。
+- `lcdmuse/service/`（daemon + IPC）与 `lcdmuse/mcp/` 未开工。
 - 主题引擎仍是 `render/demo.py` 的测试卡，未接 `res/themes`。
 
 ## 15. 提交前自检
 
 ```bash
-python -m ruff check lcdpilot drivers/*/driver.py tools/petify.py tools/pet_preview.py tests/test_stage1.py
+python -m ruff check lcdmuse drivers/*/driver.py tools/petify.py tools/pet_preview.py tests/test_stage1.py
 ```

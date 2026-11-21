@@ -12,12 +12,13 @@ import pytest
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from lcdpilot.lcd_comm import (DeviceInfo, Frame, LcdComm, Unsupported,  # noqa: E402
+from lcdmuse.lcd_comm import (DeviceInfo, Frame, LcdComm, Unsupported,  # noqa: E402
                             DRIVER_API_VERSION, InvalidArgument)
-from lcdpilot.plugin import load_plugins  # noqa: E402
-from lcdpilot.registry import Registry  # noqa: E402
-from lcdpilot.render.canvas import Canvas  # noqa: E402
-from lcdpilot.pet import Pet, list_pets  # noqa: E402
+from lcdmuse.plugin import load_plugins  # noqa: E402
+from lcdmuse.plugin_store import PluginError, install_plugin, remove_plugin  # noqa: E402
+from lcdmuse.registry import Registry  # noqa: E402
+from lcdmuse.render.canvas import Canvas  # noqa: E402
+from lcdmuse.pet import Pet, list_pets  # noqa: E402
 
 
 # ── 契约 ────────────────────────────────────────────────────────────────
@@ -77,7 +78,7 @@ def _make_plugin(root: Path, pid: str, api: int = DRIVER_API_VERSION, requires: 
         enabled_by_default: true
     """), encoding="utf-8")
     (d / "driver.py").write_text(textwrap.dedent("""
-        from lcdpilot.lcd_comm import Capability, DeviceInfo, LcdComm
+        from lcdmuse.lcd_comm import Capability, DeviceInfo, LcdComm
 
         class TestDriver(LcdComm):
             @classmethod
@@ -167,8 +168,94 @@ CORE_PATTERNS = {
 @pytest.mark.parametrize("name,pattern", list(CORE_PATTERNS.items()))
 def test_core_has_no_hardware_knowledge(name, pattern):
     offenders = []
-    for path in (REPO / "lcdpilot").rglob("*.py"):
+    for path in (REPO / "lcdmuse").rglob("*.py"):
         for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if re.search(pattern, line, re.I):
                 offenders.append(f"{path.relative_to(REPO)}:{lineno}: {line.strip()[:80]}")
     assert offenders == [], f"{name} 泄漏到核心: {offenders[:5]}"
+
+
+# ── 用户插件目录（方案 B） ───────────────────────────────────────────────
+def _copy_simulated(dest_root: Path) -> Path:
+    import shutil
+    target = dest_root / "simulated"
+    shutil.copytree(REPO / "drivers" / "simulated", target,
+                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    return target
+
+
+def test_user_dir_plugins_are_scanned_and_marked_as_user(tmp_path):
+    user_root = tmp_path / "user-drivers"
+    _copy_simulated(user_root)
+    reg = Registry([user_root, REPO / "drivers"])
+    plugin = reg.get("simulated")
+    assert plugin.origin == "user"
+    assert plugin.available
+
+
+def test_user_plugin_overrides_builtin_with_same_id(tmp_path):
+    user_root = tmp_path / "user-drivers"
+    target = _copy_simulated(user_root)
+    manifest = target / "driver.yaml"
+    manifest.write_text(manifest.read_text(encoding="utf-8").replace(
+        "name: 模拟屏（离线验证）", "name: 模拟屏（用户覆盖版）"), encoding="utf-8")
+
+    reg = Registry([user_root, REPO / "drivers"])
+    assert reg.get("simulated").name == "模拟屏（用户覆盖版）"
+    # 同 id 只出现一次
+    assert [p.id for p in reg.plugins].count("simulated") == 1
+
+
+def test_plugin_install_and_remove_round_trip(tmp_path):
+    user_root = tmp_path / "user-drivers"
+    info = install_plugin(REPO / "drivers" / "simulated", user_root)
+    assert info["id"] == "simulated" and info["origin"] == "user"
+    assert (user_root / "simulated" / "driver.yaml").is_file()
+
+    with pytest.raises(PluginError):
+        install_plugin(REPO / "drivers" / "simulated", user_root)      # 已存在
+    install_plugin(REPO / "drivers" / "simulated", user_root, force=True)
+
+    out = remove_plugin("simulated", user_root)
+    assert out["id"] == "simulated"
+    assert not (user_root / "simulated").exists()
+    with pytest.raises(PluginError):
+        remove_plugin("simulated", user_root)                          # 已经没了
+
+
+def test_plugin_install_from_zip(tmp_path):
+    import zipfile
+    user_root = tmp_path / "user-drivers"
+    zpath = tmp_path / "simulated.zip"
+    with zipfile.ZipFile(zpath, "w") as zf:
+        for f in (REPO / "drivers" / "simulated").rglob("*"):
+            if f.is_file() and "__pycache__" not in f.parts:
+                zf.write(f, f.relative_to(REPO / "drivers"))
+    info = install_plugin(zpath, user_root)
+    assert info["id"] == "simulated"
+    assert (user_root / "simulated" / "driver.py").is_file()
+
+
+def test_plugin_rejects_zip_slip(tmp_path):
+    import zipfile
+    user_root = tmp_path / "user-drivers"
+    zpath = tmp_path / "evil.zip"
+    with zipfile.ZipFile(zpath, "w") as zf:
+        zf.writestr("../escaped.txt", "x")
+        zf.writestr("driver.yaml", "id: evil\napi: 1\nentry: driver:Driver\n")
+    with pytest.raises(PluginError):
+        install_plugin(zpath, user_root)
+    assert not (tmp_path / "escaped.txt").exists()
+
+
+def test_min_core_blocks_too_new_plugin(tmp_path):
+    d = tmp_path / "future" / "driver.js"
+    d.parent.mkdir(parents=True)
+    (d.parent / "driver.yaml").write_text(
+        "id: future\nname: 未来插件\nversion: 9.0.0\napi: 1\nentry: driver:Driver\nmin_core: 99.0.0\n",
+        encoding="utf-8")
+    d.write_text("from lcdmuse.lcd_comm import LcdComm\n\n\nclass Driver(LcdComm):\n    def open(self):\n"
+                 "        raise NotImplementedError\n", encoding="utf-8")
+    plugin = load_plugins(tmp_path, origin="user")[0]
+    assert not plugin.available
+    assert "核心" in plugin.reason
