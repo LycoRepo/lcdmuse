@@ -248,6 +248,25 @@ def test_plugin_rejects_zip_slip(tmp_path):
     assert not (tmp_path / "escaped.txt").exists()
 
 
+def test_install_skips_git_and_cache_dirs(tmp_path):
+    """从版本库目录装插件时，别把 .git / __pycache__ 拷进用户目录（只读对象会导致下次删除失败）。"""
+    src = tmp_path / "src" / "simulated"
+    import shutil
+    shutil.copytree(REPO / "drivers" / "simulated", src)
+    (src / ".git" / "objects").mkdir(parents=True, exist_ok=True)
+    (src / ".git" / "objects" / "x").write_text("readonly-ish", encoding="utf-8")
+    (src / "__pycache__").mkdir(exist_ok=True)
+    (src / "__pycache__" / "y.pyc").write_text("x", encoding="utf-8")
+
+    user_root = tmp_path / "user"
+    install_plugin(src, user_root)
+    assert not (user_root / "simulated" / ".git").exists()
+    # __pycache__ 会在“装完即时校验”那一步由 import 生成，不算复制进来的
+    assert not any(p.name == "y.pyc" for p in (user_root / "simulated").rglob("*.pyc"))
+    # 覆盖安装（--force）应该能顺利删掉旧副本
+    install_plugin(src, user_root, force=True)
+
+
 def test_min_core_blocks_too_new_plugin(tmp_path):
     d = tmp_path / "future" / "driver.js"
     d.parent.mkdir(parents=True)
