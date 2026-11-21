@@ -48,7 +48,7 @@ class Player:
     """把 render_demo (+桌宠) 按间隔推给某个驱动。"""
 
     def __init__(self, cfg: Config, plugin_id: str = "", interval: float = 1.0,
-                 pet: str | None = "whale-girl"):
+                 pet: str | None = "whale-girl", stage=None):
         self.cfg = cfg
         self.registry = Registry([str(p) for p in cfg.drivers_dirs])
         fps = 0.0
@@ -57,6 +57,7 @@ class Player:
             fps = float(raw or 0)
         self.interval = max(0.02, (1.0 / fps) if fps > 0 else float(interval))
         self.pet_name = pet
+        self.stage = stage        # PetStage：多屏共享的一只桌宠；给了它就不再各屏各画一只
         self.status = PlayerStatus(plugin=plugin_id, pet=pet)
         self.plugin_id = plugin_id or self.autodetect() or ""
         self.status.plugin = self.plugin_id
@@ -198,18 +199,34 @@ class Player:
     def _render_sized(self, width: int, height: int, step: int | None = None):
         left, top, right, bottom = self._safe_area()
         comp = self.composition(width, height)
+        inner = (width, height)
+        if any((left, top, right, bottom)):
+            inner = (max(8, width - left - right), max(8, height - top - bottom))
+
+        # 多屏巡游：桌宠由全局 RoamingPet 决定此刻在谁身上、画在哪
+        pet_draw = None
+        hide_pet = False
+        if self.roamer is not None and self.roamer.pet is not None:
+            pet_draw = self.roamer.draw_on(self.plugin_id or "", inner[0], inner[1],
+                                           step or 0)
+            hide_pet = pet_draw is None
+            if pet_draw is not None:                 # 巡游时就别让 Composition 再画一只
+                comp.pet = self.roamer.pet
+
         if not any((left, top, right, bottom)):
-            return comp.render((width, height), step=step)
-        inner = (max(8, width - left - right), max(8, height - top - bottom))
+            return comp.render((width, height), step=step, pet_draw=pet_draw,
+                               hide_pet=hide_pet)
         from PIL import Image
         canvas = Image.new("RGB", (width, height), (0, 0, 0))
-        canvas.paste(comp.render(inner, step=step), (left, top))
+        canvas.paste(comp.render(inner, step=step, pet_draw=pet_draw, hide_pet=hide_pet),
+                     (left, top))
         return canvas
 
     # ── 三层合成：底图 → 主题蒙版与数据 → 桌宠 ──────────────────────────
     def composition(self, width: int, height: int) -> Composition:
         """尺寸变了（换屏/换驱动）就重建；平时复用同一个对象，省掉重复读图。"""
-        key = (width, height, self._theme_id, self.pet_name, self._background_path)
+        pet_name = None if self.stage is not None else self.pet_name
+        key = (width, height, self._theme_id, pet_name, self._background_path)
         if self._comp is not None and self._comp_key == key:
             return self._comp
         theme = find_theme(self._theme_id, theme_dirs(self.cfg)) if self._theme_id else None
@@ -242,6 +259,8 @@ class Player:
         self.cfg.background = self._background_path
         self._comp = None
         return self._background_path
+
+    roamer: Any = None                     # RoamingPet：多屏共用一只桌宠
 
     def _pet_obj(self) -> Pet | None:
         if self._pet is None and self.pet_name:

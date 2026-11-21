@@ -12,6 +12,7 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
+from typing import Any
 
 from PIL import Image, ImageDraw
 
@@ -110,6 +111,24 @@ def _open_path(path: Path) -> None:
         log.warning("打开 %s 失败: %s", path, exc)
 
 
+def _make_roamer(cfg: Config, players: list) -> Any:
+    """建一只全局唯一的巡游桌宠：多块屏共用，同一时刻只出现在一块屏上。"""
+    ids = [p.plugin_id for p in players if p.plugin_id]
+    if not ids or not players:
+        return None
+    first = players[0]
+    pet_obj = None
+    try:
+        pet_obj = first._pet_obj()          # 复用 Player 的加载与回退逻辑
+    except Exception as exc:                # noqa: BLE001
+        log.warning("巡游桌宠加载失败: %s", exc)
+        return None
+    if pet_obj is None:
+        return None
+    from lcdmuse.roam import RoamingPet
+    return RoamingPet(pet=pet_obj, order=ids)
+
+
 def run_tray(cfg: Config, plugin_id: str = "", interval: float = 0.2,
              pet: str | None = "whale-girl", port: int = 0) -> int:
     try:
@@ -124,6 +143,9 @@ def run_tray(cfg: Config, plugin_id: str = "", interval: float = 0.2,
         return 0
 
     players = _build_players(cfg, plugin_id, interval, pet)
+    roamer = _make_roamer(cfg, players)
+    for p in players:
+        p.roamer = roamer
     for p in players:
         p.start()
 
