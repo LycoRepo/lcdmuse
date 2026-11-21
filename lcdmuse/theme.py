@@ -257,6 +257,11 @@ class Theme:
                                     decimals=spec.get("decimals"),
                                     prefix=str(spec.get("prefix") or ""),
                                     suffix=str(spec.get("suffix") or ""))
+            if key == "date.weekday" and spec.get("cn"):   # 1~7 → 周一~周日
+                try:
+                    text = "周" + "一二三四五六日"[int(float(raw)) - 1]
+                except (TypeError, ValueError, IndexError):
+                    text = str(raw)
             if spec.get("upper"):
                 text = text.upper()
             x, y = spec.get("at") or (spec.get("x", 0), spec.get("y", 0))

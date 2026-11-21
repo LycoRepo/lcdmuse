@@ -43,6 +43,7 @@ class Config:
     default_pet: str = "whale-girl"
     drivers: dict[str, dict[str, Any]] = field(default_factory=dict)
     device_names: dict[str, str] = field(default_factory=dict)   # plugin_id -> 自定义显示名
+    device_themes: dict[str, str] = field(default_factory=dict)  # plugin_id -> 该屏用的主题
     path: Path | None = None                                     # 从哪个 yaml 读进来，回写也写回它
 
     @property
@@ -65,6 +66,7 @@ class Config:
                     setattr(cfg, key, Path(data[key]).expanduser())
             cfg.drivers = dict(data.get("drivers") or {})
             cfg.device_names = {str(k): str(v) for k, v in (data.get("device_names") or {}).items()}
+            cfg.device_themes = {str(k): str(v) for k, v in (data.get("device_themes") or {}).items()}
             cfg.path = p
         return cfg
 
@@ -94,7 +96,8 @@ class Config:
                 data = {}
         data.update({"theme": self.theme, "background": self.background,
                      "pet_enabled": self.pet_enabled, "default_pet": self.default_pet,
-                     "drivers": self.drivers, "device_names": self.device_names})
+                     "drivers": self.drivers, "device_names": self.device_names,
+                     "device_themes": self.device_themes})
         p.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
         self.path = p
         return p

@@ -66,7 +66,9 @@ class Player:
         self._info: DeviceInfo | None = None
         self.last_image = None          # 最近一次渲染的画面（PIL.Image），给界面预览用
         self._pet: Pet | None = None
-        self._theme_id: str = cfg.theme or ""
+        # 每块屏可以有自己的主题；没单独指定就跟全局
+        device_theme = (getattr(cfg, "device_themes", None) or {}).get(self.plugin_id, "")
+        self._theme_id: str = device_theme or cfg.theme or ""
         self._background_path: str = cfg.background or ""
         self._comp = None
         self._comp_key: tuple | None = None
