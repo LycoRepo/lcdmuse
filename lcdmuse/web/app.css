@@ -46,15 +46,6 @@ main{display:flex;flex-direction:column;gap:10px;padding:12px;overflow:auto}
 .title{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .title h1{margin:0;font-size:15px;font-weight:600}
 .tag{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:5px;padding:1px 6px}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
-.card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--panel-2)}
-.card.on{border-color:rgba(63,191,224,.5)}
-.card .name{font-weight:600;display:flex;justify-content:space-between;gap:8px}
-.card .name span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card .meta{color:var(--muted);font-size:11px;margin-top:2px}
-.card .stat{margin-top:8px;display:flex;align-items:baseline;gap:8px}
-.card .frames{font-size:19px;font-weight:600;letter-spacing:-.02em}
-.card .unit{color:var(--muted);font-size:11px}
 .bar{height:2px;background:var(--line);border-radius:2px;margin-top:8px;overflow:hidden}
 .bar i{display:block;height:100%;background:var(--accent);width:0}
 table.kv{width:100%;border-collapse:collapse;font-size:12px}

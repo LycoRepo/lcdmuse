@@ -15,13 +15,6 @@ function render(s){
   const devs = s.devices || [];
   if (selected >= devs.length) selected = 0;
 
-  // 顶栏胶囊
-  $("pills").innerHTML = devs.map(d => {
-    const cls = d.error ? "bad" : (d.running && !d.paused ? "" : "off");
-    const short = d.alias.length > 14 ? d.alias.slice(0, 13) + "…" : d.alias;
-    return `<span class="pill" title="${esc(d.alias)}"><i class="dot ${cls}"></i><b>${esc(short)}</b></span>`;
-  }).join("");
-
   // 左栏
   $("nav").innerHTML =
     `<h6>设备</h6>` +
@@ -54,25 +47,10 @@ function render(s){
   $("cur").textContent = d.alias ? d.alias : "没有探测到设备";
   $("curMeta").textContent = d.size ? `${d.size[0]}×${d.size[1]} · ${d.plugin||""}` : "接上屏或先跑 lcdmuse probe";
 
-  $("cards").innerHTML = devs.map((x,i) => `
-    <div class="card ${i===selected?"on":""}" data-i="${i}">
-      <div class="name"><span>${esc(x.alias)}</span>
-        <span class="num" style="color:var(--muted);font-size:11px">${x.size[0]}×${x.size[1]}</span></div>
-      <div class="meta">${esc(x.plugin||"")}${x.error ? " · "+esc(x.error.slice(0,24)) : ""}</div>
-      <div class="stat"><span class="frames num">${x.frames}</span><span class="unit">帧</span>
-        <span class="unit num">${x.fps.toFixed(1)} fps</span>
-        <span class="unit" style="margin-left:auto;color:${x.error?"var(--bad)":(x.paused?"var(--warn)":"var(--ok)")}">
-          ${x.error?"异常":(x.paused?"已暂停":"运行中")}</span></div>
-      <div class="bar"><i style="width:${Math.min(100, x.fps*100/2)}%"></i></div>
-    </div>`).join("");
-  $("cards").querySelectorAll(".card").forEach(el => {
-    el.onclick = async () => { selected = +el.dataset.i; await api("/api/select", {index:selected}); render(s); };
-  });
-
   $("kv").innerHTML = [
     ["驱动", d.plugin || "—"],
     ["设备自报", d.device || "—"],
-    ["帧 / 帧率", `${d.frames ?? 0} 帧 · ${(d.fps ?? 0).toFixed(1)} fps`],
+    ["帧率", `${(d.fps ?? 0).toFixed(1)} fps`],
     ["桌宠", d.pet ? d.pet : "关闭"],
     ["主题", s.theme ? s.theme : "测试卡"],
     ["底图", s.background ? s.background : "主题自带"],
@@ -93,7 +71,6 @@ function render(s){
 
   $("legend").innerHTML = [
     ["状态", d.error ? "异常：" + esc(d.error.slice(0,30)) : (d.paused ? "已暂停" : (d.running ? "运行中" : "未连接"))],
-    ["最近帧", d.frames ? `#${d.frames}` : "—"],
     ["分辨率", d.size ? `${d.size[0]}×${d.size[1]}` : "—"],
   ].map(([k,v]) => `<span>${k}</span><span class="num">${v}</span>`).join("");
 
@@ -103,9 +80,11 @@ function render(s){
   if (history.length > 60) history.shift();
   drawChart();
 
-  const total = devs.reduce((a,x) => a + (x.frames||0), 0);
-  $("status").innerHTML = `<b>${devs.length}</b> 台设备 · 已推 <b class="num">${total}</b> 帧 · `
-    + `当前 <b class="num">${(d.fps ?? 0).toFixed(1)}</b> fps`;
+  $("status").innerHTML = `<b>${devs.length}</b> 台设备 · 当前 <b class="num">${(d.fps ?? 0).toFixed(1)}</b> fps`;
+  const mcp = s.mcp || {};
+  $("mcp").innerHTML = mcp.ready
+    ? `MCP：就绪 · <b class="num">${mcp.tools ?? 0}</b> 个工具`
+    : "MCP：未就绪";
 }
 
 function drawChart(){
