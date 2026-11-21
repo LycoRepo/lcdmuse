@@ -3,11 +3,15 @@ pet_enabled: true
 default_pet: whale-girl
 drivers:
   sama_s300:
+    target_fps: 3.0          # 921600 8N1 约 92 KB/s，一帧 ~30 KB，再快就排队了
     safe_area:
     - 0
     - 0
     - 30
     - 0
+  aigo_xingcanlan:
+    target_fps: 6.5          # HID 实测一帧 ~148 ms 上限，6 帧左右的动画刚好
+    jpeg_quality: 70
 device_names:
   sama_s300: 先马 S300
   aigo_xingcanlan: 爱国者 星璨岚

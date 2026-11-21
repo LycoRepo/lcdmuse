@@ -51,7 +51,11 @@ class Player:
                  pet: str | None = "whale-girl"):
         self.cfg = cfg
         self.registry = Registry([str(p) for p in cfg.drivers_dirs])
-        self.interval = max(0.1, float(interval))
+        fps = 0.0
+        with contextlib.suppress(Exception):
+            raw = (cfg.driver_config(plugin_id) or {}).get("target_fps")
+            fps = float(raw or 0)
+        self.interval = max(0.02, (1.0 / fps) if fps > 0 else float(interval))
         self.pet_name = pet
         self.status = PlayerStatus(plugin=plugin_id, pet=pet)
         self.plugin_id = plugin_id or self.autodetect() or ""
@@ -159,7 +163,8 @@ class Player:
                     last_beat = time.time()
                     log.info("心跳 %s：%d 帧，%.1f fps", self.status.device or self.plugin_id,
                              self.status.frames, self.status.fps)
-            self._stop.wait(self.interval)
+            spent = time.time() - started
+            self._stop.wait(max(0.0, self.interval - spent))
 
     def _push_once(self) -> None:
         info = self._info
