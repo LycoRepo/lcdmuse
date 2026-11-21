@@ -10,12 +10,14 @@ import ctypes
 import os
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 from PIL import Image, ImageDraw
 
 from lcdmuse.config import APP_NAME, Config, log
 from lcdmuse.player import Player
+from lcdmuse.ui import ControlWindow
 import contextlib
 
 _ACCENT = (90, 210, 255)
@@ -102,6 +104,21 @@ def run_tray(cfg: Config, plugin_id: str = "", interval: float = 1.0,
 
     icon = pystray.Icon(f"{APP_NAME}", make_icon(), f"{APP_NAME} · 副屏")
 
+    def _quit_all() -> None:
+        for p in players:
+            p.stop()
+        with contextlib.suppress(Exception):
+            icon.stop()
+
+    window = ControlWindow(players, cfg, on_quit=_quit_all)
+    window.start()
+    if os.environ.get(f"{APP_NAME.upper()}_SHOW_WINDOW", "1") == "1":
+        # 默认开机就把面板亮出来（托盘模式也方便第一次看见）；设成 0 则只留图标
+        threading.Timer(0.8, window.show).start()
+
+    def on_open(icon_: pystray.Icon, item) -> None:
+        window.show()
+
     def refresh() -> None:
         running = any(p.status.running for p in players)
         if len(players) == 1:
@@ -133,6 +150,7 @@ def run_tray(cfg: Config, plugin_id: str = "", interval: float = 1.0,
         _open_path(Path(cfg.out_dir).parent / "logs")
 
     def on_quit(icon_: pystray.Icon, item) -> None:
+        window.close()
         for p in players:
             p.stop()
         icon_.stop()
@@ -144,6 +162,7 @@ def run_tray(cfg: Config, plugin_id: str = "", interval: float = 1.0,
         return players[0].status.summary() if len(players) == 1 else f"{len(players)} 块屏在推"
 
     menu = pystray.Menu(
+        pystray.MenuItem("打开主界面", on_open, default=True),
         pystray.MenuItem(_status_item, None, enabled=False),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("暂停 / 继续", on_toggle_pause,
@@ -158,7 +177,6 @@ def run_tray(cfg: Config, plugin_id: str = "", interval: float = 1.0,
     )
     icon.menu = menu
 
-    import threading
     stop_tick = threading.Event()
 
     def _ticker() -> None:

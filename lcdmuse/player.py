@@ -56,6 +56,7 @@ class Player:
 
         self._driver = None
         self._info: DeviceInfo | None = None
+        self.last_image = None          # 最近一次渲染的画面（PIL.Image），给界面预览用
         self._pet: Pet | None = None
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
@@ -143,7 +144,7 @@ class Player:
                 gap = now - last_push if last_push else max(1e-3, now - started)
                 last_push = now
                 self.status.frames += 1
-                self.status.fps = 1.0 / max(gap, 1e-3)
+                self.status.fps = (1.0 / max(gap, 1e-3)) if self.status.frames > 1 else 1.0 / self.interval
                 if time.time() - last_beat >= 30:
                     last_beat = time.time()
                     log.info("心跳 %s：%d 帧，%.1f fps", self.status.device or self.plugin_id,
@@ -160,7 +161,9 @@ class Player:
             pet = self._pet_obj()
             if pet is not None:
                 pet.draw_on(canvas)
-        driver.push_frame(canvas.to_frame())
+        frame = canvas.to_frame()
+        self.last_image = frame.to_image()
+        driver.push_frame(frame)
 
     def _pet_obj(self) -> Pet | None:
         if self._pet is None and self.pet_name:
