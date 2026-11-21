@@ -40,6 +40,7 @@ class Config:
     default_pet: str = "whale-girl"
     drivers: dict[str, dict[str, Any]] = field(default_factory=dict)
     device_names: dict[str, str] = field(default_factory=dict)   # plugin_id -> 自定义显示名
+    path: Path | None = None                                     # 从哪个 yaml 读进来，回写也写回它
 
     @property
     def drivers_dirs(self) -> list[Path]:
@@ -60,6 +61,7 @@ class Config:
                     setattr(cfg, key, Path(data[key]).expanduser())
             cfg.drivers = dict(data.get("drivers") or {})
             cfg.device_names = {str(k): str(v) for k, v in (data.get("device_names") or {}).items()}
+            cfg.path = p
         return cfg
 
     def name_for(self, plugin_id: str, fallback: str = "") -> str:
@@ -76,7 +78,7 @@ class Config:
 
     def save(self, path: Path | str | None = None) -> Path:
         """只回写我们管的几个键，其余保持原样。"""
-        p = Path(path) if path else REPO_ROOT / f"{APP_NAME}.yaml"
+        p = Path(path) if path else (self.path or REPO_ROOT / f"{APP_NAME}.yaml")
         data: dict[str, Any] = {}
         if p.exists():
             try:
@@ -87,6 +89,7 @@ class Config:
                      "default_pet": self.default_pet,
                      "drivers": self.drivers, "device_names": self.device_names})
         p.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+        self.path = p
         return p
 
     def driver_config(self, plugin_id: str) -> dict[str, Any]:

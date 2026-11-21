@@ -1,9 +1,7 @@
-# lcdmuse 配置（阶段 1 只用 driver 段 + 输出目录）
 theme: 3.5inchTheme2
 pet_enabled: true
 default_pet: whale-girl
-
-drivers:
-  simulated:
-    width: 960
-    height: 480
+drivers: {}
+device_names:
+  sama_s300: 先马 S300
+  aigo_xingcanlan: 爱国者 星璨岚
