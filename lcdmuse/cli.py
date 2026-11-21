@@ -144,12 +144,6 @@ def cmd_plugin_dir(args: argparse.Namespace, cfg: Config) -> int:
     return 0
 
 
-def cmd_pet(args: argparse.Namespace, cfg: Config) -> int:
-    from lcdmuse.deskpet import run_desktop_pet
-    from lcdmuse.pet import pet_dirs
-    return run_desktop_pet(args.pet, scale=args.scale, pet_dirs=pet_dirs(cfg))
-
-
 def cmd_tray(args: argparse.Namespace, cfg: Config) -> int:
     """托盘常驻：把玩家循环挂到右下角，右键菜单能暂停/开关桌宠/退出。"""
     from lcdmuse.tray import run_tray
@@ -292,11 +286,6 @@ def build_parser() -> argparse.ArgumentParser:
     tr.add_argument("--pet", default="", help="桌宠名；传 none 表示关掉桌宠")
     tr.add_argument("--port", type=int, default=0, help="控制台/MCP 固定端口（默认随机）")
     tr.set_defaults(func=cmd_tray)
-
-    dp = sub.add_parser("pet", help="桌面桌宠（透明置顶小窗，可拖拽，不是副屏贴图）")
-    dp.add_argument("--pet", default="whale-girl", help="桌宠名（pets/<id>）")
-    dp.add_argument("--scale", type=float, default=1.0, help="缩放，0.3–3.0")
-    dp.set_defaults(func=cmd_pet)
 
     th = sub.add_parser("themes", help="主题插件（themes/<id>/theme.yaml）")
     thsub = th.add_subparsers(dest="sub", required=True)
