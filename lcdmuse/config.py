@@ -39,6 +39,7 @@ class Config:
     pet_enabled: bool = True
     default_pet: str = "whale-girl"
     drivers: dict[str, dict[str, Any]] = field(default_factory=dict)
+    device_names: dict[str, str] = field(default_factory=dict)   # plugin_id -> 自定义显示名
 
     @property
     def drivers_dirs(self) -> list[Path]:
@@ -58,7 +59,35 @@ class Config:
                 if data.get(key):
                     setattr(cfg, key, Path(data[key]).expanduser())
             cfg.drivers = dict(data.get("drivers") or {})
+            cfg.device_names = {str(k): str(v) for k, v in (data.get("device_names") or {}).items()}
         return cfg
+
+    def name_for(self, plugin_id: str, fallback: str = "") -> str:
+        """设备显示名：用户改过的优先，其次设备自报，最后插件 id。"""
+        return self.device_names.get(plugin_id) or fallback or plugin_id
+
+    def set_device_name(self, plugin_id: str, name: str, path: Path | str | None = None) -> None:
+        name = (name or "").strip()
+        if name:
+            self.device_names[plugin_id] = name
+        else:
+            self.device_names.pop(plugin_id, None)
+        self.save(path)
+
+    def save(self, path: Path | str | None = None) -> Path:
+        """只回写我们管的几个键，其余保持原样。"""
+        p = Path(path) if path else REPO_ROOT / f"{APP_NAME}.yaml"
+        data: dict[str, Any] = {}
+        if p.exists():
+            try:
+                data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+            except Exception:
+                data = {}
+        data.update({"theme": self.theme, "pet_enabled": self.pet_enabled,
+                     "default_pet": self.default_pet,
+                     "drivers": self.drivers, "device_names": self.device_names})
+        p.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+        return p
 
     def driver_config(self, plugin_id: str) -> dict[str, Any]:
         return dict(self.drivers.get(plugin_id) or {})
