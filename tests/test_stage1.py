@@ -426,3 +426,49 @@ def test_web_control_console_serves_state_and_preview(tmp_path):
         assert Config.load(yaml_path).name_for("fake_dev") == "机箱大屏"
     finally:
         server.shutdown()
+
+
+def test_web_ui_is_plain_files_and_swappable(tmp_path, monkeypatch):
+    """界面就是 web/ 下的三个文件：改文件刷新即生效，换目录即换整套前端。"""
+    import urllib.request
+
+    from lcdmuse.config import Config
+    from lcdmuse.webui import start_server, web_root
+
+    # 默认目录里确实是分开的静态文件
+    root = web_root()
+    assert (root / "index.html").is_file()
+    assert (root / "app.css").is_file()
+    assert (root / "app.js").is_file()
+    assert "<style>" not in (root / "index.html").read_text(encoding="utf-8")
+
+    # 换成本地一份皮肤：后端代码不动，页面跟着变
+    skin = tmp_path / "skin"
+    skin.mkdir()
+    (skin / "index.html").write_text("<!doctype html><title>my skin</title>自定义", encoding="utf-8")
+    (skin / "app.css").write_text("body{color:hotpink}", encoding="utf-8")
+    (skin / "app.js").write_text("console.log('hi')", encoding="utf-8")
+    monkeypatch.setenv("LCDMUSE_WEB_DIR", str(skin))
+
+    cfg = Config()
+    cfg.user_drivers_dir = tmp_path / "drivers"
+    server, port = start_server([_DummyPlayer(cfg)], cfg)
+    try:
+        base = f"http://127.0.0.1:{port}"
+        assert "自定义" in urllib.request.urlopen(base + "/", timeout=5).read().decode()
+        css = urllib.request.urlopen(base + "/app.css", timeout=5)
+        assert css.headers["Content-Type"].startswith("text/css")
+        assert "hotpink" in css.read().decode()
+
+        # 改文件 → 刷新就变（不重启进程）
+        (skin / "app.css").write_text("body{color:teal}", encoding="utf-8")
+        assert "teal" in urllib.request.urlopen(base + "/app.css", timeout=5).read().decode()
+
+        # 越界路径不放行
+        try:
+            urllib.request.urlopen(base + "/../webui.py", timeout=5)
+            raise AssertionError("路径穿越没挡住")
+        except Exception as exc:
+            assert "404" in str(exc) or "403" in str(exc) or "HTTP Error" in str(exc)
+    finally:
+        server.shutdown()
