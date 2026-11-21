@@ -199,6 +199,26 @@ class _Handler(BaseHTTPRequestHandler):
                 "themes": [t.describe() for t in list_themes(theme_dirs(self.cfg))],
                 "error": result.get("error", "")}
 
+    def _serve_icon(self, png: bool) -> None:      # noqa: FBT001 - 内部调用，够简单
+        """网页标签页上的小图标：优先用户自己的，其次仓库里的。"""
+        from lcdmuse.config import default_user_dir
+        root = Path(__file__).resolve().parent
+        candidates = []
+        name = "icon.png" if png else "icon.ico"
+        for base in (default_user_dir(), root.parent / "assets", root / "web"):
+            candidates += [base / name, base / "favicon.png"]
+        for path in candidates:
+            if path.exists():
+                data = path.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png" if path.suffix == ".png" else "image/x-icon")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
+        self.send_response(404)
+        self.end_headers()
+
     def do_GET(self) -> None:                          # noqa: N802
         url = urlparse(self.path)
         if url.path == "/" or url.path == "/index.html":
@@ -219,6 +239,9 @@ class _Handler(BaseHTTPRequestHandler):
             from lcdmuse.theme import list_themes, theme_dirs
             self._json({"themes": [t.describe() for t in list_themes(theme_dirs(self.cfg))]})
             return None
+        if url.path in ("/favicon.ico", "/favicon.png"):
+            return self._serve_icon(url.path.endswith(".png"))
+
         if url.path == "/api/pet/roam":
             from lcdmuse import roam as roam_mod
             roamer = roam_mod.CURRENT

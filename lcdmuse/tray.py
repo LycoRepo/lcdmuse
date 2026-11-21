@@ -25,8 +25,30 @@ _ACCENT = (90, 210, 255)
 _DARK = (12, 19, 32)
 
 
+def _custom_icon(size: int) -> Image.Image | None:
+    """优先用 assets/icon.png（用户自己画的）；没有就 None，回退到内置画法。"""
+    from lcdmuse.config import default_user_dir
+    for path in (default_user_dir() / "icon.png",
+                 Path(__file__).resolve().parent.parent / "assets" / "icon.png"):
+        if path.exists():
+            try:
+                with Image.open(path) as im:
+                    icon = im.convert("RGBA")
+                return icon.resize((size, size), Image.Resampling.LANCZOS)
+            except Exception as exc:                      # noqa: BLE001 - 图坏了就用内置
+                log.warning("自定义图标读不出来（%s）: %s", path, exc)
+    return None
+
+
 def make_icon(size: int = 64, *, active: bool = True, error: bool = False) -> Image.Image:
-    """画一个"副屏"图标：圆角屏 + 中间的取景框；出错时变成红点。"""
+    """托盘图标：优先用户自己的 assets/icon.png，其次内置的「副屏」画法。"""
+    custom = _custom_icon(size)
+    if custom is not None:
+        if error:                                     # 出错时右下角点个红点
+            d = ImageDraw.Draw(custom)
+            r = max(3, size // 6)
+            d.ellipse([size - 2 * r, size - 2 * r, size, size], fill=(235, 80, 90))
+        return custom
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     pad = max(2, size // 12)
