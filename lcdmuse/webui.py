@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import atexit
+import contextlib
 import io
 import json
 import os
@@ -26,6 +27,49 @@ from lcdmuse.mcp_server import Toolbox, clear_runtime, handle as mcp_handle, wri
 
 if TYPE_CHECKING:                                     # pragma: no cover
     from lcdmuse.player import Player
+
+
+_DIALOG_LOCK = threading.Lock()
+
+
+def install_theme_files(src_path: str | Path, user_root: str | Path, mode: str = "dir") -> dict[str, Any]:
+    """把一个主题（文件夹或 zip）拷进用户主题目录。返回 {ok, installed} 或 {ok:False, error}。"""
+    import shutil
+    import tempfile
+    import zipfile
+    from lcdmuse.theme import list_themes, theme_dirs
+
+    user_root = Path(user_root)
+    tmp = Path(tempfile.mkdtemp(prefix="lcdmuse-theme-"))
+    try:
+        src = Path(src_path)
+        if mode == "zip" or src.suffix.lower() == ".zip":
+            with zipfile.ZipFile(src) as zf:
+                for member in zf.namelist():
+                    target = (tmp / member).resolve()
+                    if not str(target).startswith(str(tmp.resolve())):
+                        raise ValueError(f"zip 里有非法路径：{member}")
+                zf.extractall(tmp)
+            found = [p for p in tmp.iterdir() if (p / "theme.yaml").exists()]
+            src = found[0] if found else tmp
+        if not (src / "theme.yaml").exists():
+            raise ValueError("这里没有 theme.yaml，不像主题插件")
+        theme_id = src.name
+        with contextlib.suppress(Exception):
+            import yaml
+            meta = yaml.safe_load((src / "theme.yaml").read_text(encoding="utf-8")) or {}
+            theme_id = str(meta.get("id") or theme_id)
+        user_root.mkdir(parents=True, exist_ok=True)
+        dest = user_root / theme_id
+        if dest.exists():
+            shutil.rmtree(dest)
+        shutil.copytree(src, dest)
+        return {"ok": True, "installed": theme_id,
+                "themes": [t.describe() for t in list_themes(theme_dirs())]}
+    except Exception as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def _state(players: list[Player], cfg: Config, selected: int) -> dict[str, Any]:
@@ -101,6 +145,60 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    # ── 文件选择 / 插件安装（都要原生对话框，放在服务端做）──────────────
+    def _pick_media(self) -> dict[str, Any]:
+        """弹系统文件对话框选底图/视频，返回 {ok, path, cancelled, error}。"""
+        if not _DIALOG_LOCK.acquire(blocking=False):
+            return {"ok": False, "error": "已经有一个选择框开着", "cancelled": False}
+        path, error = "", ""
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            path = filedialog.askopenfilename(
+                title="选一张底图 / GIF / 视频",
+                filetypes=[("图片与视频", "*.png *.jpg *.jpeg *.webp *.gif *.bmp *.mp4 *.webm *.avi *.mkv"),
+                           ("全部文件", "*.*")])
+            root.destroy()
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+        finally:
+            _DIALOG_LOCK.release()
+        return {"ok": bool(path), "path": path, "error": error, "cancelled": not path and not error}
+
+    def _install_theme(self, data: dict[str, Any]) -> dict[str, Any]:
+        """把一个主题（文件夹或 zip）装进用户主题目录，返回安装结果和最新清单。"""
+        mode = str(data.get("mode") or "dir")
+        if not _DIALOG_LOCK.acquire(blocking=False):
+            return {"ok": False, "error": "已经有一个选择框开着"}
+        picked, error = "", ""
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            if mode == "zip":
+                picked = filedialog.askopenfilename(title="选主题 zip",
+                                                    filetypes=[("主题包", "*.zip"), ("全部文件", "*.*")])
+            else:
+                picked = filedialog.askdirectory(title="选主题文件夹（里面有 theme.yaml）")
+            root.destroy()
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+        finally:
+            _DIALOG_LOCK.release()
+        if not picked or error:
+            return {"ok": False, "cancelled": not picked and not error, "error": error}
+
+        result = install_theme_files(picked, self.cfg.user_themes_dir, mode)
+        from lcdmuse.theme import list_themes, theme_dirs
+        return {"ok": result.get("ok", False), "installed": result.get("installed"),
+                "themes": [t.describe() for t in list_themes(theme_dirs(self.cfg))],
+                "error": result.get("error", "")}
+
     def do_GET(self) -> None:                          # noqa: N802
         url = urlparse(self.path)
         if url.path == "/" or url.path == "/index.html":
@@ -124,27 +222,6 @@ class _Handler(BaseHTTPRequestHandler):
         if url.path == "/api/pets":
             from lcdmuse.pet import list_pets, pet_dirs
             self._json({"pets": list_pets(pet_dirs(self.cfg))})
-            return
-        if url.path == "/api/pick-file":
-            # 用系统文件对话框选底图/视频：前端弹 prompt 太糙，这里直接开原生窗口
-            path = ""
-            error = ""
-            try:
-                import tkinter as tk
-                from tkinter import filedialog
-                root = tk.Tk()
-                root.withdraw()
-                root.attributes("-topmost", True)
-                path = filedialog.askopenfilename(
-                    title="选一张底图 / GIF / 视频",
-                    filetypes=[("图片与视频", "*.png *.jpg *.jpeg *.webp *.gif *.bmp *.mp4 *.webm *.avi *.mkv"),
-                               ("全部文件", "*.*")])
-                root.destroy()
-            except Exception as exc:
-                error = f"{type(exc).__name__}: {exc}"
-            self._json({"ok": bool(path), "path": path, "error": error,
-                        "cancelled": not path and not error})
-            return
             return
         if url.path == "/api/preview":
             query = parse_qs(url.query)
@@ -215,6 +292,14 @@ class _Handler(BaseHTTPRequestHandler):
             pid = player.plugin_id or player.status.plugin
             self.cfg.set_device_name(pid, str(data.get("name") or ""))
             return self._json({"ok": True, "alias": self.cfg.name_for(pid, "")})
+
+        if url.path == "/api/install-theme":
+            # 载入主题插件：选文件夹或 zip，拷进用户主题目录（同名覆盖）
+            return self._install_theme(data)
+
+        if url.path == "/api/pick-file":
+            # 系统文件对话框选底图/视频；返回路径给前端
+            return self._json(self._pick_media())
 
         if url.path == "/api/open":
             from pathlib import Path
