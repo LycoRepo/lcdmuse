@@ -799,3 +799,34 @@ def test_pet_fit_height_scales_with_canvas():
         fitted = comp._fit_pet(pet.frame_at(1.0, step=0), w, h, 0)
         assert abs(fitted.height - int(h * 0.5)) <= 2, f"{w}x{h} 高度 {fitted.height}"
         assert fitted.width <= int(w * 0.55) + 2
+
+
+def test_roaming_pet_is_on_one_screen_at_a_time():
+    """多屏巡游：同一时刻只有一块屏画桌宠，走到边缘会换到下一块屏。"""
+    import json
+    import tempfile
+    from pathlib import Path as _P
+    from lcdmuse.pet import Pet
+    from lcdmuse.roam import RoamingPet
+
+    d = _P(tempfile.mkdtemp()) / "roampet"
+    d.mkdir()
+    sheet = _Img.new("RGBA", (4 * 10, 20), (255, 255, 255, 255))
+    sheet.save(d / "sheet.webp")
+    (d / "pet.json").write_text(json.dumps({
+        "name": "roampet", "kind": "pet", "api": 1, "fit_height": 0.5,
+        "spritesheet": {"path": "sheet.webp", "columns": 4, "rows": 1},
+        "states": {"idle": {"row": 0, "frames": 4, "fps": 4},
+                    "walk": {"row": 0, "frames": 4, "fps": 4}},
+    }), encoding="utf-8")
+
+    roam = RoamingPet(pet=Pet.load(d), order=["screenA", "screenB"], speed=2.0, dwell=999)
+    drawn = [roam.draw_on("screenA", 800, 400, step=0, now=10.0),
+             roam.draw_on("screenB", 800, 400, step=0, now=10.0)]
+    assert drawn[0] is not None and drawn[1] is None      # 只在 A 上
+    # 走满一圈后换屏（速度 2.0/s → 半秒就走完一遍）
+    roam.draw_on("screenA", 800, 400, step=0, now=10.5)
+    roam.draw_on("screenA", 800, 400, step=0, now=11.0)
+    assert roam.current == "screenB"
+    assert roam.draw_on("screenB", 800, 400, step=0, now=11.5) is not None
+    assert roam.draw_on("screenA", 800, 400, step=0, now=11.5) is None

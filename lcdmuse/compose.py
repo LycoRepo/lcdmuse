@@ -93,7 +93,9 @@ class Composition:
 
     def render(self, size: tuple[int, int], now: float | None = None,
                metrics: Mapping[str, Any] | None = None,
-               step: int | None = None) -> Image.Image:
+               step: int | None = None,
+               pet_draw: tuple[Image.Image, int, int] | None = None,
+               hide_pet: bool = False) -> Image.Image:
         import time
         now = now if now is not None else time.time()
         values = dict(metrics) if metrics is not None else get_hub().sample(now, ttl=0.5)
@@ -107,8 +109,14 @@ class Composition:
         else:
             canvas = render_demo(size[0], size[1], str(self.font_dir or ""), now=now).image
 
-        if self.pet is not None:
+        if self.pet is not None and not hide_pet:
             try:
+                if pet_draw is not None:                 # 由 RoamingPet 指定位置（多屏巡游）
+                    sprite, px, py = pet_draw
+                    if canvas.mode != "RGB":
+                        canvas = canvas.convert("RGB")
+                    canvas.paste(sprite, (max(0, px), max(0, py)), sprite)
+                    return canvas
                 sprite = self.pet.frame_at(now, step=step)
                 sprite = self._fit_pet(sprite, canvas.width, canvas.height, step)
                 x, y = self.pet.anchor_xy(canvas.width, canvas.height, sprite)
