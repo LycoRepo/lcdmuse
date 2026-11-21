@@ -89,6 +89,7 @@ def _state(players: list[Player], cfg: Config, selected: int) -> dict[str, Any]:
             "running": st.running,
             "error": st.last_error,
             "pet": player.pet_name,
+            "theme": player.theme_id,
         })
     theme = players[0].theme_id if players else ""
     background = getattr(players[0], "_background_path", "") if players else ""
