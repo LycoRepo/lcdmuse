@@ -171,7 +171,7 @@ class Player:
         driver = self._driver
         if info is None or driver is None:
             raise DeviceOffline("设备未打开")
-        image = self._render_sized(info.width, info.height)
+        image = self._render_sized(info.width, info.height, step=self.status.frames)
         frame = Frame.from_image(image)
         self.last_image = image
         tick = getattr(driver, "tick", None)
@@ -195,15 +195,15 @@ class Player:
             return (0, 0, 0, 0)
         return (max(0, left), max(0, top), max(0, right), max(0, bottom))
 
-    def _render_sized(self, width: int, height: int):
+    def _render_sized(self, width: int, height: int, step: int | None = None):
         left, top, right, bottom = self._safe_area()
         comp = self.composition(width, height)
         if not any((left, top, right, bottom)):
-            return comp.render((width, height))
+            return comp.render((width, height), step=step)
         inner = (max(8, width - left - right), max(8, height - top - bottom))
         from PIL import Image
         canvas = Image.new("RGB", (width, height), (0, 0, 0))
-        canvas.paste(comp.render(inner), (left, top))
+        canvas.paste(comp.render(inner, step=step), (left, top))
         return canvas
 
     # ── 三层合成：底图 → 主题蒙版与数据 → 桌宠 ──────────────────────────
@@ -245,12 +245,22 @@ class Player:
 
     def _pet_obj(self) -> Pet | None:
         if self._pet is None and self.pet_name:
-            try:
-                self._pet = find_pet(self.pet_name, pet_dirs(self.cfg)) or \
-                    Pet.load(Path(self.cfg.pets_dir) / self.pet_name)
-            except Exception as exc:
-                log.warning("桌宠 %s 加载失败: %s", self.pet_name, exc)
-                self._pet = None
+            # 配置里指定的桌宠可能在用户目录（不进仓库），别的机器上就没有：
+            # 依次退回仓库自带的两个，最后才放弃，别让屏上干脆没有桌宠。
+            candidates = [self.pet_name, "whale-girl-hd", "whale-girl"]
+            for name in candidates:
+                try:
+                    found = find_pet(name, pet_dirs(self.cfg)) or \
+                        Pet.load(Path(self.cfg.pets_dir) / name)
+                except Exception as exc:                   # noqa: BLE001 - 逐个候选都要试
+                    if name == candidates[-1]:
+                        log.warning("桌宠加载失败（试过 %s）: %s", "、".join(candidates), exc)
+                    continue
+                if found is not None:
+                    if name != self.pet_name:
+                        log.info("桌宠 %s 不可用，退用 %s", self.pet_name, name)
+                    self._pet = found
+                    break
         return self._pet
 
     # ── 设备 ────────────────────────────────────────────────────────────
