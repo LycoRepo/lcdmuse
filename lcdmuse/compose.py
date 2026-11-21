@@ -47,12 +47,8 @@ def _micro_motion(sprite: Image.Image, state: str, now: float):
     if state in ("click", "say"):
         wave = math.sin(now * 2 * math.pi * 6.0)
         return sprite, int(round(wave * 2.0)), int(round(abs(wave) * -2.0))
-    wave = math.sin(now * 2 * math.pi * 0.55)          # idle：呼吸
-    squash = 1.0 + 0.006 * wave
-    if abs(squash - 1.0) > 1e-3:
-        size = (max(1, int(sprite.width * squash)), max(1, int(sprite.height * (2 - squash))))
-        sprite = sprite.resize(size, Image.Resampling.BILINEAR)
-        return sprite, 0, int(round(-(sprite.height - size[1]) / 2)) - int(round(wave * 1.0))
+    wave = math.sin(now * 2 * math.pi * 0.55)          # idle：呼吸（只做整像素位移）
+    # 不要每帧 resize 做“压扁呼吸”：LANCZOS 每帧重采样会让边缘像素来回变，看着就是闪。
     return sprite, 0, int(round(wave * 1.0))
 
 
@@ -64,7 +60,8 @@ class Composition:
     font_dir: Path | None = None
 
     def render(self, size: tuple[int, int], now: float | None = None,
-               metrics: Mapping[str, Any] | None = None) -> Image.Image:
+               metrics: Mapping[str, Any] | None = None,
+               step: int | None = None) -> Image.Image:
         import time
         now = now if now is not None else time.time()
         values = dict(metrics) if metrics is not None else get_hub().sample(now, ttl=0.5)
@@ -80,11 +77,14 @@ class Composition:
 
         if self.pet is not None:
             try:
-                sprite = self.pet.frame_at(now)
+                sprite = self.pet.frame_at(now, step=step)
                 x, y = self.pet.anchor_xy(canvas.width, canvas.height, sprite)
                 if canvas.mode != "RGB":
                     canvas = canvas.convert("RGB")
-                sprite, dx, dy = _micro_motion(sprite, self.pet.state, now)
+                if self.pet.micro_motion:
+                    sprite, dx, dy = _micro_motion(sprite, self.pet.state, now)
+                else:
+                    dx = dy = 0
                 # 只贴桌宠那一小块：paste 用 sprite 自己的 alpha 当蒙版，
                 # 比整幅转 RGBA 再 alpha_composite 省两次全画布拷贝
                 canvas.paste(sprite, (max(0, x + dx), max(0, y + dy)), sprite)

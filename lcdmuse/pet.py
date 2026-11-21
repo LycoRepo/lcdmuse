@@ -56,6 +56,7 @@ class Pet:
     cache_limit: int = 64
     _cache: dict[Any, Image.Image] = field(default_factory=dict)   # 解码过的帧，别每帧读盘
     scale: float = 1.0                                            # 精灵图放大倍数（192px 的格子在小屏上太小）
+    micro_motion: bool = True                                     # 帧少时叠加呼吸/抖动；帧密的精灵图应关掉
     sheet: Image.Image | None = None                              # 精灵图（一整张）
     sheet_columns: int = 1
     frame_size: tuple[int, int] | None = None
@@ -114,6 +115,7 @@ class Pet:
                    margin=int(data.get("margin", 16)),
                    source=dict(data.get("source") or {}),
                    scale=float(data.get("scale", 1.0) or 1.0),
+                   micro_motion=bool(data.get("micro_motion", sheet is None)),
                    sheet=sheet, sheet_columns=columns, frame_size=frame_size)
 
     # ── 状态机 ──────────────────────────────────────────────────────────
@@ -141,11 +143,19 @@ class Pet:
             st = self.states[self._state]
         return st
 
-    def frame_at(self, now: float | None = None) -> Image.Image:
+    def frame_at(self, now: float | None = None, step: int | None = None) -> Image.Image:
+        """取一帧。
+
+        ``step`` 给定时按「第几次推帧」取帧，而不是按墙钟时间采样——屏幕只有 3fps 时，
+        8fps 的动画按时间采样会每次跳到不相邻的帧，看起来就是在闪。按步进就不会。
+        """
         now = now if now is not None else time.time()
         st = self._resolve(now)
-        idx = int((now - self._started) * st.fps)
-        idx = idx % len(st.frames) if st.loop else min(idx, len(st.frames) - 1)
+        if step is not None and st.loop:
+            idx = int(step) % len(st.frames)
+        else:
+            idx = int((now - self._started) * st.fps)
+            idx = idx % len(st.frames) if st.loop else min(idx, len(st.frames) - 1)
         ref = st.frames[idx]
         sprite = self._cache.get(ref)
         if sprite is None and isinstance(ref, SheetCell) and self.sheet is not None:

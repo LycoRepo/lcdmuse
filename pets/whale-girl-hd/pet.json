@@ -6,6 +6,7 @@
   "anchor": "bottom-left",
   "margin": 16,
   "scale": 1.6,
+  "micro_motion": false,
   "spritesheet": {
     "path": "spritesheet.webp",
     "columns": 8,

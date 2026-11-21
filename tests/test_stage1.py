@@ -752,3 +752,25 @@ def test_pet_loads_spritesheet_and_slices_rows(tmp_path):
     assert eat.getpixel((4, 4))[1] > 200 and eat.getpixel((4, 4))[0] < 60       # 绿
     # 帧会随时间推进（8fps → 0.2s 后换一格）
     assert pet.frame_at(0.2) is not None
+
+
+def test_pet_step_mode_advances_exactly_one_frame_per_push(tmp_path):
+    """按推帧步进取帧：第 n 次推帧必须是第 n 帧，不能因为墙钟采样乱跳。"""
+    import json
+    sheet = _Img.new("RGBA", (4 * 8, 8), (0, 0, 0, 0))
+    for col in range(4):                       # 每格颜色不同，便于判断取到第几帧
+        sheet.paste((col * 60, 0, 0, 255), (col * 8, 0, (col + 1) * 8, 8))
+    root = tmp_path / "steppet"
+    root.mkdir()
+    sheet.save(root / "sheet.webp")
+    (root / "pet.json").write_text(json.dumps({
+        "name": "steppet", "kind": "pet", "api": 1,
+        "spritesheet": {"path": "sheet.webp", "columns": 4, "rows": 1},
+        "states": {"idle": {"row": 0, "frames": 4, "fps": 8}},
+    }), encoding="utf-8")
+
+    pet = Pet.load(root)
+    assert pet.micro_motion is False           # 精灵图默认不叠加抖动
+    for step in range(6):
+        px = pet.frame_at(now=123.456, step=step).convert("RGB").getpixel((4, 4))
+        assert abs(px[0] - (step % 4) * 60) <= 8, f"第 {step} 次推帧取到了 {px}"   # webp 有损，留容差
