@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 sys.path.insert(0, ".")
-from lcdpilot.pet import Pet
+from lcdmuse.pet import Pet
 
 REPO = Path(".")
 FONT = REPO/"res/fonts/SourceHanSansCN/SourceHanSansCN-Bold.otf"

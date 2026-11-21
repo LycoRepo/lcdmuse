@@ -1,4 +1,4 @@
-# lcdpilot
+# lcdmuse
 
 把小尺寸 USB 副屏（串口 CDC / USB HID）当第二块显示器用：采集系统指标 → 画进画布 → 推帧到屏。
 **核心零驱动，驱动全是插件**；界面中文；带桌宠。
@@ -23,23 +23,23 @@
 | 离线渲染（无硬件出图，用于开发与测试） | 可用 |
 | 原厂驱动适配层（7 个上游机型） | 默认不加载，未在真实硬件上验证 |
 | 主题引擎接 `res/themes` | 未接（现在只有测试卡） |
-| `lcdpilot-daemon` + `lcdpilot-mcp`（给别的程序调用） | 未开工 |
+| `lcdmuse-daemon` + `lcdmuse-mcp`（给别的程序调用） | 未开工 |
 
 ## 快速开始
 
 ```bash
-git clone https://github.com/LycoRepo/lcdpilot.git
-cd lcdpilot
+git clone https://github.com/LycoRepo/lcdmuse.git
+cd lcdmuse
 pip install -e ".[dev]"
 ```
 
 没接屏幕也能跑：
 
 ```bash
-python -m lcdpilot.cli drivers list                       # 插件表
-python -m lcdpilot.cli probe                              # 探测设备（默认只探启用的插件）
-python -m lcdpilot.cli render --offline --pet whale-girl --out out/preview.png
-python -m lcdpilot.cli pets list
+python -m lcdmuse.cli drivers list                       # 插件表
+python -m lcdmuse.cli probe                              # 探测设备（默认只探启用的插件）
+python -m lcdmuse.cli render --offline --pet whale-girl --out out/preview.png
+python -m lcdmuse.cli pets list
 ```
 
 `--offline` 走内置的 `simulated` 驱动，不碰任何硬件。
@@ -47,7 +47,7 @@ python -m lcdpilot.cli pets list
 ## 目录
 
 ```
-lcdpilot/          核心：契约、插件加载、注册表、渲染、链路、桌宠、CLI
+lcdmuse/          核心：契约、插件加载、注册表、渲染、链路、桌宠、CLI
 drivers/<id>/      驱动插件（driver.yaml + driver.py），simulated 是样板
 pets/<name>/       桌宠（pet.json + frames/*.png）
 tools/             GIF 抽帧、预览合成
@@ -61,10 +61,24 @@ library/           上游旧实现，仍在过渡期，勿加新代码
 驱动就是往 `drivers/` 加一个目录，核心不用改：
 
 1. `drivers/<id>/driver.yaml`：`api: 1`、`entry`、`requires`（写 import 名，如 `serial`）
-2. `driver.py` 继承 `lcdpilot.lcd_comm.LcdComm`，实现 `probe / open / close / push_frame`
-3. `python -m lcdpilot.cli drivers list` 看到 `available: true` 就成了
+2. `driver.py` 继承 `lcdmuse.lcd_comm.LcdComm`，实现 `probe / open / close / push_frame`
+3. `python -m lcdmuse.cli drivers list` 看到 `available: true` 就成了
 
 细节与验收标准见 [`docs/AI-GUIDE.md`](docs/AI-GUIDE.md) 第 6、8 节。
+
+### 装到用户目录（不改源码）
+
+```bash
+lcdmuse plugin dir                        # 打印并创建用户插件目录
+lcdmuse plugin add path/to/my-driver      # 装一个目录（或 .zip）
+lcdmuse plugin add my-driver.zip --force   # 覆盖已装的
+lcdmuse plugin list                       # 看用户目录里装了哪些
+lcdmuse plugin remove my-driver           # 卸载
+```
+
+用户插件目录：Windows `%APPDATA%\lcdmuse\drivers`，Linux/macOS `~/.config/lcdmuse/drivers`。
+启动时两个目录都扫，`origin` 列标明来源；同 id 撞车时**用户目录那份生效**，仓库自带的被跳过（会打一条 warning）。
+`driver.yaml` 里的 `min_core` 可声明最低核心版本，核心太旧就只标「不可用」，不会把程序带崩。
 
 ## 桌宠
 
@@ -78,7 +92,7 @@ library/           上游旧实现，仍在过渡期，勿加新代码
 本仓是 GPL-3.0 衍生作品：上游的 `LICENSE`、`AUTHORS`、`COPYRIGHT` 原样保留，
 被我们改动或新增的文件列在 [`docs/MODIFICATIONS.md`](docs/MODIFICATIONS.md)。
 上游的驱动实现仍以 `library/`（及适配层 `drivers/_legacy/`）的形式存在，供 7 个原厂机型使用；
-过渡期结束后会删除，届时只剩 `lcdpilot/` + `drivers/`。
+过渡期结束后会删除，届时只剩 `lcdmuse/` + `drivers/`。
 
 上游文档（机型差异、主题格式、故障排查）仍然有效，见
 [turing-smart-screen-python wiki](https://github.com/mathoudebine/turing-smart-screen-python/wiki)。

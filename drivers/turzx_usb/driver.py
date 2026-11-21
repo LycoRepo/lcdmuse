@@ -2,7 +2,7 @@
 """TURZX / Turing USB（1CBE）（原厂驱动，移植成插件；默认不加载，用作契约回归）。
 
 实现方式：适配层——真正的协议实现仍在 `drivers/_legacy/library/`，
-本类只负责把它接到 lcdpilot 的契约上。
+本类只负责把它接到 lcdmuse 的契约上。
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ _LEGACY = Path(__file__).resolve().parent.parent / "_legacy"
 if str(_LEGACY) not in sys.path:
     sys.path.insert(0, str(_LEGACY))
 
-from lcdpilot.lcd_comm import Capability, DeviceInfo, Frame, LcdComm, DriverFailure  # noqa: E402
+from lcdmuse.lcd_comm import Capability, DeviceInfo, Frame, LcdComm, DriverFailure  # noqa: E402
 
 
 class TurzxUsbDriver(LcdComm):

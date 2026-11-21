@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 
-from lcdpilot.render.canvas import Canvas
+from lcdmuse.render.canvas import Canvas
 
 FONT_BOLD = "SourceHanSansCN/SourceHanSansCN-Bold.otf"
 FONT_REGULAR = "SourceHanSansCN/SourceHanSansCN-Regular.otf"

@@ -11,8 +11,8 @@ from dataclasses import dataclass
 
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 
-from lcdpilot.lcd_comm import Frame
-from lcdpilot.render.color import RGB, parse_color
+from lcdmuse.lcd_comm import Frame
+from lcdmuse.render.color import RGB, parse_color
 
 _FONT_CACHE: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
 

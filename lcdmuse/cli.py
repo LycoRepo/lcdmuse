@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""命令行入口：lcdpilot drivers list / render / probe / pets list。
+"""命令行入口：lcdmuse drivers / probe / render / pets / plugin。
 
 阶段 1 只到「契约 + 渲染 + 模拟驱动」，daemon / MCP 在阶段 5。
 """
@@ -10,17 +10,18 @@ import json
 import sys
 from pathlib import Path
 
-from lcdpilot.config import Config, log
-from lcdpilot.lcd_comm import LcdError
-from lcdpilot.registry import Registry
-from lcdpilot.render.demo import render_demo
-from lcdpilot.pet import Pet, list_pets
+from lcdmuse.config import Config, log
+from lcdmuse.lcd_comm import LcdError
+from lcdmuse.plugin_store import PluginError, install_plugin, list_user_plugins, remove_plugin
+from lcdmuse.registry import Registry
+from lcdmuse.render.demo import render_demo
+from lcdmuse.pet import Pet, list_pets
 
 
 def _fmt_table(rows: list[dict]) -> str:
     if not rows:
         return "(空)"
-    cols = ["id", "name", "version", "api", "available", "reason"]
+    cols = ["id", "name", "version", "api", "origin", "available", "reason"]
     widths = {c: max(len(c), *(len(str(r.get(c, ""))) for r in rows)) for c in cols}
     head = "  ".join(c.ljust(widths[c]) for c in cols)
     line = "  ".join("-" * widths[c] for c in cols)
@@ -29,18 +30,21 @@ def _fmt_table(rows: list[dict]) -> str:
 
 
 def cmd_drivers_list(args: argparse.Namespace, cfg: Config) -> int:
-    reg = Registry(cfg.drivers_dir)
+    reg = Registry(cfg.drivers_dirs)
     rows = reg.describe()
     if args.as_json:
         print(json.dumps(rows, ensure_ascii=False, indent=2))
     else:
-        print(f"驱动目录: {cfg.drivers_dir}\n共 {len(rows)} 个插件\n")
+        print("驱动目录（前面的优先）:")
+        for i, d in enumerate(cfg.drivers_dirs):
+            print(f"  {i + 1}. {d}  ({'用户' if d == cfg.user_drivers_dir else '仓库自带'})")
+        print(f"\n共 {len(rows)} 个插件\n")
         print(_fmt_table(rows))
     return 0
 
 
 def cmd_probe(args: argparse.Namespace, cfg: Config) -> int:
-    reg = Registry(cfg.drivers_dir)
+    reg = Registry(cfg.drivers_dirs)
     found = reg.probe(cfg.drivers, only=args.plugin)
     out = [{"driver": p.id, "device": info.to_dict()} for p, info in found]
     print(json.dumps(out, ensure_ascii=False, indent=2))
@@ -64,7 +68,7 @@ def cmd_render(args: argparse.Namespace, cfg: Config) -> int:
         }, ensure_ascii=False, indent=2))
         return 0
 
-    reg = Registry(cfg.drivers_dir)
+    reg = Registry(cfg.drivers_dirs)
     plugin_id = args.plugin
     out_path = Path(args.out) if args.out else (cfg.ensure_out() / "render.png")
 
@@ -96,6 +100,42 @@ def cmd_render(args: argparse.Namespace, cfg: Config) -> int:
         "driver_state": drv.status() if hasattr(drv, "status") else {},
     }, ensure_ascii=False, indent=2))
     drv.close()
+    return 0
+
+
+def cmd_plugin_list(args: argparse.Namespace, cfg: Config) -> int:
+    root = cfg.user_drivers_dir
+    plugins = list_user_plugins(root)
+    rows = [p.to_dict() for p in plugins]
+    print(json.dumps({"ok": True, "dir": str(root), "count": len(rows), "plugins": rows},
+                     ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_plugin_add(args: argparse.Namespace, cfg: Config) -> int:
+    try:
+        info = install_plugin(args.source, cfg.user_drivers_dir, force=args.force)
+    except PluginError as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False, indent=2))
+        return 1
+    print(json.dumps({"ok": True, "installed": info, "dir": str(cfg.user_drivers_dir)},
+                     ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_plugin_remove(args: argparse.Namespace, cfg: Config) -> int:
+    try:
+        out = remove_plugin(args.plugin_id, cfg.user_drivers_dir)
+    except PluginError as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False, indent=2))
+        return 1
+    print(json.dumps({"ok": True, **out}, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_plugin_dir(args: argparse.Namespace, cfg: Config) -> int:
+    root = cfg.ensure_user_drivers()
+    print(json.dumps({"ok": True, "dir": str(root)}, ensure_ascii=False, indent=2))
     return 0
 
 
@@ -132,8 +172,8 @@ def _maybe_draw_pet(args: argparse.Namespace, cfg: Config, canvas) -> dict | Non
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="lcdpilot", description="副屏管理：零驱动核心 + 插件驱动")
-    p.add_argument("--config", default=None, help="配置文件路径（默认仓库根 lcdpilot.yaml）")
+    p = argparse.ArgumentParser(prog="lcdmuse", description="副屏管理：零驱动核心 + 插件驱动")
+    p.add_argument("--config", default=None, help="配置文件路径（默认仓库根 lcdmuse.yaml）")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     d = sub.add_parser("drivers", help="驱动相关")
@@ -155,6 +195,20 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--pet-state", default=None, help="idle/eat/sleep/click/say")
     r.add_argument("--height", type=int, default=None)
     r.set_defaults(func=cmd_render)
+
+    pg = sub.add_parser("plugin", help="用户插件：安装 / 卸载 / 查看")
+    pgsub = pg.add_subparsers(dest="sub", required=True)
+    pgl = pgsub.add_parser("list", help="列出用户目录里装的插件")
+    pgl.set_defaults(func=cmd_plugin_list)
+    pga = pgsub.add_parser("add", help="装一个插件（目录或 .zip）")
+    pga.add_argument("source")
+    pga.add_argument("--force", action="store_true", help="已存在时覆盖")
+    pga.set_defaults(func=cmd_plugin_add)
+    pgr = pgsub.add_parser("remove", help="卸载用户插件")
+    pgr.add_argument("plugin_id")
+    pgr.set_defaults(func=cmd_plugin_remove)
+    pgd = pgsub.add_parser("dir", help="打印用户插件目录（不存在则创建）")
+    pgd.set_defaults(func=cmd_plugin_dir)
 
     pe = sub.add_parser("pets", help="桌宠相关")
     pesub = pe.add_subparsers(dest="sub", required=True)

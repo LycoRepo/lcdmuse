@@ -17,7 +17,7 @@ from collections.abc import Mapping
 
 from PIL import Image
 
-from lcdpilot.lcd_comm import InvalidArgument
+from lcdmuse.lcd_comm import InvalidArgument
 
 ONE_SHOT = {"eat", "click", "say"}
 
