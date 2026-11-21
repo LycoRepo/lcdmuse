@@ -25,6 +25,37 @@ from lcdmuse.render.demo import render_demo
 from lcdmuse.theme import Theme
 
 
+def _micro_motion(sprite: Image.Image, state: str, now: float):
+    """给 8 帧的姿态之间补上连续的小动作。
+
+    素材只有 8 张图（源 GIF 就 8 帧），光靠切帧看着像 PPT。这里在每帧上叠一点
+    正弦位移/缩放：待机呼吸、走路上下颠、吃饭轻点头。屏刷新多少帧，动作就变多少次，
+    所以 6 fps 下也是连续的，而不是每 8 帧才跳一下。
+    """
+    import math
+
+    state = (state or "idle").lower()
+    if state == "sleep":
+        wave = math.sin(now * 2 * math.pi * 0.25)
+        return sprite, 0, int(round(wave * 1.0))
+    if state == "walk":
+        wave = math.sin(now * 2 * math.pi * 2.6)
+        return sprite, 0, -int(round(abs(wave) * 3.0))
+    if state == "eat":
+        wave = math.sin(now * 2 * math.pi * 1.8)
+        return sprite, 0, int(round(wave * 1.5))
+    if state in ("click", "say"):
+        wave = math.sin(now * 2 * math.pi * 6.0)
+        return sprite, int(round(wave * 2.0)), int(round(abs(wave) * -2.0))
+    wave = math.sin(now * 2 * math.pi * 0.55)          # idle：呼吸
+    squash = 1.0 + 0.006 * wave
+    if abs(squash - 1.0) > 1e-3:
+        size = (max(1, int(sprite.width * squash)), max(1, int(sprite.height * (2 - squash))))
+        sprite = sprite.resize(size, Image.Resampling.BILINEAR)
+        return sprite, 0, int(round(-(sprite.height - size[1]) / 2)) - int(round(wave * 1.0))
+    return sprite, 0, int(round(wave * 1.0))
+
+
 @dataclass
 class Composition:
     theme: Theme | None = None
@@ -34,6 +65,8 @@ class Composition:
 
     def render(self, size: tuple[int, int], now: float | None = None,
                metrics: Mapping[str, Any] | None = None) -> Image.Image:
+        import time
+        now = now if now is not None else time.time()
         values = dict(metrics) if metrics is not None else get_hub().sample(now, ttl=0.5)
         if self.theme is not None:
             try:
@@ -51,9 +84,10 @@ class Composition:
                 x, y = self.pet.anchor_xy(canvas.width, canvas.height, sprite)
                 if canvas.mode != "RGB":
                     canvas = canvas.convert("RGB")
+                sprite, dx, dy = _micro_motion(sprite, self.pet.state, now)
                 # 只贴桌宠那一小块：paste 用 sprite 自己的 alpha 当蒙版，
                 # 比整幅转 RGBA 再 alpha_composite 省两次全画布拷贝
-                canvas.paste(sprite, (max(0, x), max(0, y)), sprite)
+                canvas.paste(sprite, (max(0, x + dx), max(0, y + dy)), sprite)
             except Exception as exc:
                 log.warning("桌宠合成失败（%s）: %s", getattr(self.pet, "name", "?"), exc)
         return canvas
