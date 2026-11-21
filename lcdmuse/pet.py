@@ -17,6 +17,7 @@ from collections.abc import Mapping
 
 from PIL import Image
 
+from lcdmuse.config import default_user_dir
 from lcdmuse.lcd_comm import InvalidArgument
 
 ONE_SHOT = {"eat", "click", "say"}
@@ -54,6 +55,12 @@ class Pet:
         if not manifest.exists():
             raise InvalidArgument(f"{root} 里没有 pet.json")
         data = json.loads(manifest.read_text(encoding="utf-8"))
+        api = int(data.get("api", PET_API))
+        if api != PET_API:
+            raise InvalidArgument(f"桌宠 {root.name} 要 api {api}，本版只认 {PET_API}")
+        kind = str(data.get("kind") or "pet")
+        if kind != "pet":
+            raise InvalidArgument(f"{root.name} 不是桌宠插件（kind={kind}）")
         states: dict[str, PetState] = {}
         for name, spec in (data.get("states") or {}).items():
             frames = [root / f for f in spec.get("frames", [])]
@@ -131,8 +138,33 @@ class Pet:
         }
 
 
-def list_pets(pets_dir: Path | str) -> list[str]:
-    root = Path(pets_dir)
-    if not root.is_dir():
-        return []
-    return sorted([p.name for p in root.iterdir() if (p / "pet.json").exists()])
+PET_API = 1
+
+
+def pet_dirs(cfg: object = None) -> list[Path]:
+    """仓库 pets/ + 用户目录（%APPDATA%/lcdmuse/pets）；同名时用户目录优先。"""
+    builtin = Path(getattr(cfg, "pets_dir", None) or Path(__file__).resolve().parent.parent / "pets")
+    user = Path(getattr(cfg, "user_pets_dir", None) or (default_user_dir() / "pets"))
+    return [builtin, user]
+
+
+def list_pets(pets_dir: Path | str | list[Path]) -> list[str]:
+    """给一个目录或一组目录，返回可用的桌宠 id（同名只算一次，后面的覆盖前面的）。"""
+    dirs = [Path(pets_dir)] if isinstance(pets_dir, (str, Path)) else [Path(p) for p in pets_dir]
+    found: dict[str, Path] = {}
+    for root in dirs:
+        if not root.is_dir():
+            continue
+        for child in sorted(root.iterdir()):
+            if (child / "pet.json").exists() or (child / "pet.yaml").exists():
+                found[child.name] = child
+    return sorted(found)
+
+
+def find_pet(name: str, dirs: list[Path] | None = None) -> Pet | None:
+    """按 id 找桌宠；用户目录优先。"""
+    for root in reversed(dirs or pet_dirs()):
+        candidate = Path(root) / name
+        if (candidate / "pet.json").exists() or (candidate / "pet.yaml").exists():
+            return Pet.load(candidate)
+    return None

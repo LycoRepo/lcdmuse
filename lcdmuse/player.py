@@ -14,9 +14,12 @@ from typing import Any
 
 from lcdmuse.config import Config, log
 from lcdmuse.lcd_comm import DeviceInfo, DeviceOffline, LcdError
-from lcdmuse.pet import Pet
+from lcdmuse.compose import Composition
+from lcdmuse.lcd_comm import Frame
+from lcdmuse.media import MediaSource
+from lcdmuse.pet import Pet, find_pet, pet_dirs
 from lcdmuse.registry import Registry
-from lcdmuse.render.demo import render_demo
+from lcdmuse.theme import find_theme, theme_dirs
 import contextlib
 
 
@@ -58,6 +61,11 @@ class Player:
         self._info: DeviceInfo | None = None
         self.last_image = None          # 最近一次渲染的画面（PIL.Image），给界面预览用
         self._pet: Pet | None = None
+        self._theme_id: str = cfg.theme or ""
+        self._background_path: str = cfg.background or ""
+        self._comp = None
+        self._comp_key: tuple | None = None
+        self.status.extra["theme"] = self._theme_id
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._lock = threading.Lock()
@@ -102,6 +110,8 @@ class Player:
     def set_pet(self, name: str | None) -> None:
         self.pet_name = name or None
         self.status.pet = self.pet_name
+        self._pet = None
+        self._comp = None
         self._pet = None                                  # 下次渲染重新加载
 
     def toggle_pet(self) -> str | None:
@@ -156,19 +166,53 @@ class Player:
         driver = self._driver
         if info is None or driver is None:
             raise DeviceOffline("设备未打开")
-        canvas = render_demo(info.width, info.height, str(self.cfg.fonts_dir))
-        if self.pet_name:
-            pet = self._pet_obj()
-            if pet is not None:
-                pet.draw_on(canvas)
-        frame = canvas.to_frame()
-        self.last_image = frame.to_image()
+        image = self.composition(info.width, info.height).render((info.width, info.height))
+        frame = Frame.from_image(image)
+        self.last_image = image
         driver.push_frame(frame)
+
+    # ── 三层合成：底图 → 主题蒙版与数据 → 桌宠 ──────────────────────────
+    def composition(self, width: int, height: int) -> Composition:
+        """尺寸变了（换屏/换驱动）就重建；平时复用同一个对象，省掉重复读图。"""
+        key = (width, height, self._theme_id, self.pet_name, self._background_path)
+        if self._comp is not None and self._comp_key == key:
+            return self._comp
+        theme = find_theme(self._theme_id, theme_dirs(self.cfg)) if self._theme_id else None
+        if theme is None and self._theme_id:
+            log.warning("主题 %s 找不到，先用测试卡", self._theme_id)
+        media = None
+        if self._background_path:
+            try:
+                media = MediaSource.open(self._background_path, (width, height))
+            except Exception as exc:
+                log.warning("底图 %s 打不开: %s", self._background_path, exc)
+        self._comp = Composition(theme=theme, pet=self._pet_obj(), background=media,
+                                font_dir=Path(self.cfg.fonts_dir))
+        self._comp_key = key
+        return self._comp
+
+    @property
+    def theme_id(self) -> str:
+        return self._theme_id
+
+    def set_theme(self, theme_id: str | None) -> str:
+        self._theme_id = theme_id or ""
+        self.cfg.theme = self._theme_id
+        self.status.extra["theme"] = self._theme_id
+        self._comp = None
+        return self._theme_id
+
+    def set_background(self, path: str | None) -> str:
+        self._background_path = path or ""
+        self.cfg.background = self._background_path
+        self._comp = None
+        return self._background_path
 
     def _pet_obj(self) -> Pet | None:
         if self._pet is None and self.pet_name:
             try:
-                self._pet = Pet.load(Path(self.cfg.pets_dir) / self.pet_name)
+                self._pet = find_pet(self.pet_name, pet_dirs(self.cfg)) or \
+                    Pet.load(Path(self.cfg.pets_dir) / self.pet_name)
             except Exception as exc:
                 log.warning("桌宠 %s 加载失败: %s", self.pet_name, exc)
                 self._pet = None

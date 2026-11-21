@@ -11,11 +11,13 @@ import sys
 from pathlib import Path
 
 from lcdmuse.config import Config, log
-from lcdmuse.lcd_comm import LcdError
+from lcdmuse.lcd_comm import Frame, LcdError
 from lcdmuse.plugin_store import PluginError, install_plugin, list_user_plugins, remove_plugin
 from lcdmuse.registry import Registry
-from lcdmuse.render.demo import render_demo
-from lcdmuse.pet import Pet, list_pets
+from lcdmuse.compose import Composition
+from lcdmuse.media import MediaSource
+from lcdmuse.pet import Pet, find_pet, list_pets, pet_dirs
+from lcdmuse.theme import find_theme, list_themes, theme_dirs
 
 
 def _fmt_table(rows: list[dict]) -> str:
@@ -56,14 +58,16 @@ def cmd_render(args: argparse.Namespace, cfg: Config) -> int:
         width = args.width or 960
         height = args.height or 480
         out_path = Path(args.out) if args.out else (cfg.ensure_out() / "offline.png")
-        canvas = render_demo(width, height, str(cfg.fonts_dir))
-        pet_info = _maybe_draw_pet(args, cfg, canvas)
-        saved = canvas.save(str(out_path))
-        frame = canvas.to_frame()
+        comp, theme_info, pet_info = _build_composition(args, cfg, width, height)
+        image = comp.render((width, height))
+        image.save(str(out_path))
+        saved = str(out_path)
+        frame = Frame.from_image(image)
         print(json.dumps({
             "ok": True, "mode": "offline", "drivers_loaded": 0,
             "frame": {"width": frame.width, "height": frame.height, "bytes": len(frame.data)},
             "png": str(Path(saved).resolve()),
+            "theme": theme_info,
             "pet": pet_info,
         }, ensure_ascii=False, indent=2))
         return 0
@@ -84,18 +88,19 @@ def cmd_render(args: argparse.Namespace, cfg: Config) -> int:
     log.info("已打开 %s (%s) %dx%d 能力=%s", info.name, info.id, info.width, info.height,
              [c.name for c in info.capabilities])
 
-    canvas = render_demo(info.width, info.height, str(cfg.fonts_dir))
-    pet_info = _maybe_draw_pet(args, cfg, canvas)
-    frame = canvas.to_frame()
+    comp, theme_info, pet_info = _build_composition(args, cfg, info.width, info.height)
+    image = comp.render((info.width, info.height))
+    frame = Frame.from_image(image)
     drv.push_frame(frame)
-
-    saved = canvas.save(str(out_path))
+    image.save(str(out_path))
+    saved = str(out_path)
     print(json.dumps({
         "ok": True,
         "driver": plugin_id,
         "device": info.to_dict(),
         "frame": {"width": frame.width, "height": frame.height, "bytes": len(frame.data)},
         "png": str(Path(saved).resolve()),
+        "theme": theme_info,
         "pet": pet_info,
         "driver_state": drv.status() if hasattr(drv, "status") else {},
     }, ensure_ascii=False, indent=2))
@@ -147,16 +152,62 @@ def cmd_tray(args: argparse.Namespace, cfg: Config) -> int:
 
 
 def cmd_pets_list(args: argparse.Namespace, cfg: Config) -> int:
-    root = Path(cfg.pets_dir)
-    names = list_pets(root)
+    dirs = pet_dirs(cfg)
     detail = []
-    for name in names:
+    for name in list_pets(dirs):
         try:
-            detail.append(Pet.load(root / name).describe())
+            detail.append(find_pet(name, dirs).describe())
         except Exception as exc:
             detail.append({"name": name, "error": str(exc)})
-    print(json.dumps({"ok": True, "pets_dir": str(root), "pets": detail}, ensure_ascii=False, indent=2))
+    print(json.dumps({"ok": True, "dirs": [str(d) for d in dirs], "pets": detail},
+                     ensure_ascii=False, indent=2))
     return 0
+
+
+def cmd_themes_list(args: argparse.Namespace, cfg: Config) -> int:
+    dirs = theme_dirs(cfg)
+    themes = [t.describe() for t in list_themes(dirs)]
+    print(json.dumps({"ok": True, "dirs": [str(d) for d in dirs],
+                      "active": cfg.theme, "themes": themes}, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_metrics(args: argparse.Namespace, cfg: Config) -> int:
+    from lcdmuse.metrics import CATALOG, read
+    payload = {"ok": True, "values": read()}
+    if args.catalog:
+        payload["catalog"] = [{"name": k, "label": v[0], "unit": v[1]} for k, v in CATALOG.items()]
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _build_composition(args: argparse.Namespace, cfg: Config, width: int,
+                       height: int) -> tuple[Composition, dict | None, dict | None]:
+    """底图 → 主题 → 桌宠。参数为空时用配置里的默认值。"""
+    theme_id = args.theme if getattr(args, "theme", None) is not None else cfg.theme
+    theme = find_theme(theme_id, theme_dirs(cfg)) if theme_id else None
+    if theme is None and theme_id:
+        log.warning("主题 %s 没找到，退回测试卡", theme_id)
+    bg_path = args.background if getattr(args, "background", None) else cfg.background
+    media = None
+    if bg_path:
+        try:
+            media = MediaSource.open(bg_path, (width, height))
+        except Exception as exc:
+            log.warning("底图 %s 打不开: %s", bg_path, exc)
+
+    pet = None
+    name = args.pet if getattr(args, "pet", None) is not None else (cfg.default_pet if cfg.pet_enabled else None)
+    if name and name not in ("none", "off"):
+        try:
+            pet = find_pet(name, pet_dirs(cfg)) or Pet.load(Path(cfg.pets_dir) / name)
+            if getattr(args, "pet_state", None):
+                pet.set_state(args.pet_state)
+        except Exception as exc:
+            log.warning("桌宠 %s 加载失败: %s", name, exc)
+
+    comp = Composition(theme=theme, pet=pet, background=media, font_dir=Path(cfg.fonts_dir))
+    return comp, (theme.describe() if theme else {"id": None}), (pet.describe() if pet else None)
 
 
 def _maybe_draw_pet(args: argparse.Namespace, cfg: Config, canvas) -> dict | None:
@@ -200,6 +251,8 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--offline", action="store_true", help="不加载任何驱动，纯渲染出图")
     r.add_argument("--pet", default=None, help="桌宠名；传 none 表示关掉桌宠")
     r.add_argument("--pet-state", default=None, help="idle/eat/sleep/click/say")
+    r.add_argument("--theme", default=None, help="主题插件 id；传空字符串=用测试卡")
+    r.add_argument("--background", default=None, help="底图：图片 / GIF / 视频路径")
     r.add_argument("--height", type=int, default=None)
     r.set_defaults(func=cmd_render)
 
@@ -222,6 +275,15 @@ def build_parser() -> argparse.ArgumentParser:
     tr.add_argument("--interval", type=float, default=1.0, help="推帧间隔（秒）")
     tr.add_argument("--pet", default="", help="桌宠名；传 none 表示关掉桌宠")
     tr.set_defaults(func=cmd_tray)
+
+    th = sub.add_parser("themes", help="主题插件（themes/<id>/theme.yaml）")
+    thsub = th.add_subparsers(dest="sub", required=True)
+    thl = thsub.add_parser("list", help="列出仓库与用户目录里的主题")
+    thl.set_defaults(func=cmd_themes_list)
+
+    mt = sub.add_parser("metrics", help="打印当前指标（主题绑的就是这些名字）")
+    mt.add_argument("--catalog", action="store_true", help="附带指标清单与说明")
+    mt.set_defaults(func=cmd_metrics)
 
     pe = sub.add_parser("pets", help="桌宠相关")
     pesub = pe.add_subparsers(dest="sub", required=True)

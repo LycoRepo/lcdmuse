@@ -31,11 +31,14 @@ def default_user_drivers_dir() -> Path:
 class Config:
     drivers_dir: Path = field(default_factory=lambda: REPO_ROOT / "drivers")
     user_drivers_dir: Path = field(default_factory=default_user_drivers_dir)
-    themes_dir: Path = field(default_factory=lambda: REPO_ROOT / "res" / "themes")
+    themes_dir: Path = field(default_factory=lambda: REPO_ROOT / "themes")
+    user_themes_dir: Path = field(default_factory=lambda: default_user_dir() / "themes")
     fonts_dir: Path = field(default_factory=lambda: REPO_ROOT / "res" / "fonts")
     pets_dir: Path = field(default_factory=lambda: REPO_ROOT / "pets")
+    user_pets_dir: Path = field(default_factory=lambda: default_user_dir() / "pets")
     out_dir: Path = field(default_factory=lambda: REPO_ROOT / "out")
-    theme: str = "3.5inchTheme2"
+    theme: str = "bezel-mask"        # 主题插件 id（themes/<id>/theme.yaml）；空 = 用测试卡
+    background: str = ""             # 覆盖主题底图：一张图 / GIF / 视频的路径
     pet_enabled: bool = True
     default_pet: str = "whale-girl"
     drivers: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -53,10 +56,11 @@ class Config:
         p = Path(path) if path else REPO_ROOT / f"{APP_NAME}.yaml"
         if p.exists():
             data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-            for key in ("theme", "pet_enabled", "default_pet"):
+            for key in ("theme", "pet_enabled", "default_pet", "background"):
                 if key in data:
                     setattr(cfg, key, data[key])
-            for key in ("drivers_dir", "user_drivers_dir"):
+            for key in ("drivers_dir", "user_drivers_dir", "themes_dir", "user_themes_dir",
+                        "pets_dir", "user_pets_dir"):
                 if data.get(key):
                     setattr(cfg, key, Path(data[key]).expanduser())
             cfg.drivers = dict(data.get("drivers") or {})
@@ -85,8 +89,8 @@ class Config:
                 data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
             except Exception:
                 data = {}
-        data.update({"theme": self.theme, "pet_enabled": self.pet_enabled,
-                     "default_pet": self.default_pet,
+        data.update({"theme": self.theme, "background": self.background,
+                     "pet_enabled": self.pet_enabled, "default_pet": self.default_pet,
                      "drivers": self.drivers, "device_names": self.device_names})
         p.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
         self.path = p

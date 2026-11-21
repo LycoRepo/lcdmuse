@@ -58,6 +58,30 @@ lcdmuse render --plugin <id> --out out/screen.png
 
 面板做三件事：左栏选设备（名字可以自己改，见下）、中栏看这台屏的驱动/帧率/配置、右栏直接预览**驱动真实推出去的那一帧**以及最近 60 秒帧率曲线。暂停/桌宠/退出都在面板上。
 
+### 主题和桌宠也是插件
+
+合成顺序是固定的：**底图 → 主题（蒙版 + 数据）→ 桌宠**。所以底图可以随时换成一张图、一张动图或一段视频，主题只决定「蒙版长什么样、数据摆哪儿」。
+
+| 类型 | 仓库目录 | 用户目录（Windows） | 清单 |
+|---|---|---|---|
+| 驱动 | `drivers/<id>/` | `%APPDATA%\lcdmuse\drivers` | `driver.yaml` |
+| 主题 | `themes/<id>/` | `%APPDATA%\lcdmuse\themes` | `theme.yaml` |
+| 桌宠 | `pets/<id>/` | `%APPDATA%\lcdmuse\pets` | `pet.json` |
+
+同名时用户目录那份优先。仓库自带一个 `themes/bezel-mask/`（右侧数据面板 + 半透明蒙版）作范例。
+
+**数据接口**供主题绑定：`lcdmuse.metrics.read()` / `lcdmuse metrics --catalog` / `GET /api/metrics`，指标名如 `cpu.percent`、`mem.percent`、`gpu.mem_percent`、`net.rx_kbps`、`time.now`、`uptime.hours`；取不到的指标不出现，主题里用 `default:` 兜底。想加自己的指标，`get_hub().register("myapp", fn)` 即可。
+
+```bash
+lcdmuse themes list                                     # 有哪些主题插件
+lcdmuse pets list                                       # 有哪些桌宠插件
+lcdmuse metrics --catalog                               # 指标清单
+lcdmuse render --offline --theme bezel-mask --pet whale-girl --out out/preview.png
+lcdmuse render --offline --background D:/wallpapers/loop.gif --out out/bg.png   # 换底图，主题不动
+```
+
+详见 `docs/AI-GUIDE.md` 第 7 节（三类插件的清单格式、蒙版元素、指标表）。
+
 ### 界面是可改的，三层分开
 
 | 层 | 位置 | 怎么改 |
