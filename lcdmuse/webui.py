@@ -203,41 +203,52 @@ class _Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         if url.path == "/" or url.path == "/index.html":
             self._static("index.html")
-            return
+            return None
         if Path(url.path).suffix in _MIME:
             self._static(Path(url.path).name)
-            return
+            return None
         if url.path == "/api/status":
             self._json(_state(self.players, self.cfg, self.selected))
-            return
+            return None
         if url.path == "/api/metrics":
             from lcdmuse.metrics import CATALOG, read
             self._json({"values": read(), "catalog": [
                 {"name": k, "label": v[0], "unit": v[1]} for k, v in CATALOG.items()]})
-            return
+            return None
         if url.path == "/api/themes":
             from lcdmuse.theme import list_themes, theme_dirs
             self._json({"themes": [t.describe() for t in list_themes(theme_dirs(self.cfg))]})
-            return
+            return None
+        if url.path == "/api/pet/roam":
+            from lcdmuse import roam as roam_mod
+            roamer = roam_mod.CURRENT
+            if roamer is None:
+                return self._json({"ok": False, "error": "桌宠未启动"}, 503)
+            mood = roamer.mood or roamer._mood()
+            return self._json({"ok": True, "roam": roamer.snapshot(),
+                               "mood": mood.summary() if mood else None})
+
         if url.path == "/api/pets":
             from lcdmuse.pet import list_pets, pet_dirs
             self._json({"pets": list_pets(pet_dirs(self.cfg))})
-            return
+            return None
         if url.path == "/api/preview":
             query = parse_qs(url.query)
             index = int(query.get("i", [str(self.selected)])[0])
             png = _preview_png(self.players, index)
             if png is None:
                 self.send_error(HTTPStatus.NOT_FOUND, "no frame yet")
-                return
+                return None
             self.send_response(200)
             self.send_header("Content-Type", "image/png")
             self.send_header("Content-Length", str(len(png)))
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(png)
-            return
+            return None
         self.send_error(HTTPStatus.NOT_FOUND)
+
+        return None
 
     def do_POST(self) -> None:                         # noqa: N802
         url = urlparse(self.path)
