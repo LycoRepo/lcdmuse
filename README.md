@@ -131,8 +131,8 @@ LCDMUSE_WEB_DIR=D:/my-skin lcdmuse tray --plugin all --interval 1
 
 ```yaml
 device_names:
-  panel_960x480: 960×480 串口屏
-  panel_1480x720: HID 屏
+  <驱动 id>: 我的左屏      # 驱动 id 用 `lcdmuse drivers list` 查
+  <驱动 id>: 我的右屏
 ```
 
 留空就恢复成设备自报的名字。
