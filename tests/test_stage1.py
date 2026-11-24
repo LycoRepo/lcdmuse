@@ -352,15 +352,15 @@ def test_device_name_alias_is_persisted(tmp_path):
     cfg_path = tmp_path / "lcdmuse.yaml"
     cfg_path.write_text("theme: x\ndrivers: {}\n", encoding="utf-8")
 
-    assert cfg.name_for("sama_s300", "TXW818") == "TXW818"
-    cfg.set_device_name("sama_s300", "我的水冷屏", cfg_path)
-    assert cfg.name_for("sama_s300", "TXW818") == "我的水冷屏"
+    assert cfg.name_for("panel_960x480", "panel") == "panel"
+    cfg.set_device_name("panel_960x480", "我的水冷屏", cfg_path)
+    assert cfg.name_for("panel_960x480", "panel") == "我的水冷屏"
 
     again = Config.load(cfg_path)
-    assert again.name_for("sama_s300") == "我的水冷屏"
+    assert again.name_for("panel_960x480") == "我的水冷屏"
     # 改回空 = 删掉自定义
-    again.set_device_name("sama_s300", "", cfg_path)
-    assert Config.load(cfg_path).name_for("sama_s300", "TXW818") == "TXW818"
+    again.set_device_name("panel_960x480", "", cfg_path)
+    assert Config.load(cfg_path).name_for("panel_960x480", "panel") == "panel"
 
 
 class _DummyPlayer:

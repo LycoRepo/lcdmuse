@@ -15,7 +15,7 @@
 
 现成的副屏软件大致三类，各有各的坑：
 
-- **厂商软件**（先马 SAMA、爱国者 AIGO 这类）：界面停在五年前，不能脚本化，只认自家屏，还常驻后台每 5 秒扫一遍硬件。
+- **厂商软件**（屏幕厂商自带的控制软件）：界面停在五年前，不能脚本化，只认自家屏，还常驻后台每 5 秒扫一遍硬件。
 - **上游开源项目**（[turing-smart-screen-python](https://github.com/mathoudebine/turing-smart-screen-python)）：功能很全，但 8 个机型的驱动被写死在核心里 —— 加一块新屏就得改核心代码。
 - **灯效软件**（OpenRGB 等）：只管 RGB，不管屏。
 
@@ -131,8 +131,8 @@ LCDMUSE_WEB_DIR=D:/my-skin lcdmuse tray --plugin all --interval 1
 
 ```yaml
 device_names:
-  sama_s300: 先马 S300
-  aigo_xingcanlan: 爱国者 星璨岚
+  panel_960x480: 960×480 串口屏
+  panel_1480x720: HID 屏
 ```
 
 留空就恢复成设备自报的名字。
@@ -216,8 +216,8 @@ enabled_by_default: true
 |---|---|
 | `simulated`（内置） | ✅ 可用，把帧存成 PNG，无硬件 |
 | Turing rev A/B/C/D、TURZX USB、WeAct A/B | ⚠️ 适配层已就位、**未在真机验证**，默认不加载 |
-| 先马（960×480 串口 JPEG） | 🚧 协议已实测（`55 AA` 帧 + 直接灌 JPEG），驱动待写 |
-| 爱国者（480×480 HID 圆屏） | 🚧 协议未知，需要抓包逆向 |
+| 串口 JPEG 屏（960×480） | 🚧 协议已实测（`55 AA` 帧 + 直接灌 JPEG），驱动待写 |
+| HID 圆屏（480×480） | 🚧 协议未知，需要抓包逆向 |
 
 上游项目支持哪些屏，见它的 [wiki](https://github.com/mathoudebine/turing-smart-screen-python/wiki/Hardware-revisions)；
 本仓的适配器就是给那些机型留的。
@@ -244,7 +244,7 @@ docs/                   AI-GUIDE（开发约定）、阶段状态、改动清单
 ## 现在到哪一步了
 
 **已完成**：契约 + 插件系统（含用户目录）+ 渲染与脏矩形 + 桌宠 + CLI + 离线验证。
-**接下来**：主题引擎接 `res/themes` → `lcdmuse-daemon` 独占设备 → `lcdmuse-mcp` 给 AI 用 → 写先马驱动。
+**接下来**：主题引擎接 `res/themes` → `lcdmuse-daemon` 独占设备 → `lcdmuse-mcp` 给 AI 用 → 写串口屏驱动。
 
 细节与缺口清单在 [`docs/STAGE1-STATUS.md`](docs/STAGE1-STATUS.md)。
 

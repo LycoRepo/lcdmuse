@@ -81,7 +81,7 @@
 64|### FoxPodZ/ryuo-iv-screen — GPL-3.0-or-later
 65|
 66|- 仓库：https://github.com/FoxPodZ/ryuo-iv-screen
-67|- 使用：爱国者（1D6B:0113，百一 / Baiyi 方案）的 HID 命令通道与图像通道格式
+67|- 使用：厂商（某 HID 方案（Baiyi））的 HID 命令通道与图像通道格式
 68|  作为起点；帧号、帧内序号、唤醒顺序等在本仓库实测修正（见
 69|  `docs/AI-GUIDE.md` 与驱动仓库提交历史）。
 70|

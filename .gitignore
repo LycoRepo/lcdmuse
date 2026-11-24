@@ -149,3 +149,4 @@ logs/
 __pycache__/
 *.pyc
 drivers.off/
+lcdmuse.yaml

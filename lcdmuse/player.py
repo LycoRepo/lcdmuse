@@ -186,7 +186,7 @@ class Player:
     def _safe_area(self) -> tuple[int, int, int, int]:
         """面板被外框挡住的边：驱动配置里的 safe_area = [左, 上, 右, 下]。
 
-        实测：先马水冷头右侧那条金属边压住约 30px，内容画进去就被吃了。
+        实测：显示屏外框右侧压住约 30px，内容画进去就被吃了。
         有它就把内容画在缩小后的画布上再居中贴回去，所有主题自动避让。
         """
         raw = (self.cfg.driver_config(self.plugin_id) or {}).get("safe_area")

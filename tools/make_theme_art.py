@@ -156,7 +156,7 @@ def _stars(img: Image.Image, count: int, seed: int, *, max_y: float = 0.75) -> N
         d.ellipse([x - r, y - r, x + r, y + r], fill=(210, 232, 255, a))
 
 
-# ---------- 主题一：深海月光（960×480，先马水冷头） ----------
+# ---------- 主题一：深海月光（960×480，显示屏） ----------
 
 def make_deepsea() -> tuple[Image.Image, Image.Image]:
     W, H = 960, 480
@@ -222,7 +222,7 @@ def make_deepsea() -> tuple[Image.Image, Image.Image]:
     return bg, mask
 
 
-# ---------- 主题二：夜港霓虹（1480×720，爱国者） ----------
+# ---------- 主题二：夜港霓虹（1480×720，厂商） ----------
 
 def make_neon_harbor() -> tuple[Image.Image, Image.Image]:
     W, H = 1480, 720
