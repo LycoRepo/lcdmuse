@@ -36,12 +36,16 @@ def runtime_path() -> Path:
     return default_user_dir() / "runtime.json"
 
 
-def write_runtime(port: int, pid: int | None = None) -> Path:
+def write_runtime(port: int, pid: int | None = None, token: str = "") -> Path:
+    """把端口和控制令牌写到用户目录，MCP 桥接与脚本据此调用本地控制接口。"""
     path = runtime_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"pid": pid or os.getpid(), "port": port,
-                                "version": __version__}, ensure_ascii=False, indent=2),
-                    encoding="utf-8")
+    payload = {"pid": pid or os.getpid(), "port": port, "version": __version__}
+    if token:
+        payload["token"] = token
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    with contextlib.suppress(OSError):
+        path.chmod(0o600)                     # 只有本用户能读
     return path
 
 
@@ -215,7 +219,8 @@ class Toolbox:
             raise McpError("invalid_argument",
                            f"图是 {frame.width}×{frame.height}，这块屏是 "
                            f"{player.status.size[0]}×{player.status.size[1]}" + "（先用 lcd_render_preview 缩放）")
-        driver.push_frame(frame)
+        with player.io_lock:                 # 和播放线程互斥，别两路同时写一个设备
+            driver.push_frame(frame)
         player.status.frames += 1
         player.last_image = frame.to_image()
         return {"ok": True, "data": {"device": player.plugin_id, "bytes": len(frame.data),
@@ -279,13 +284,26 @@ class Toolbox:
 
     def pet_set(self, pet: str | None = None, enabled: bool | None = None,
                 device_id: str | None = None, **_kw) -> dict[str, Any]:
+        """开关桌宠：和托盘、面板同一个开关（cfg.pet_enabled + 巡游实例）。"""
+        from lcdmuse import roam as roam_mod
+        want_off = enabled is False or pet in ("", "none", "off")
+        roamer = roam_mod.CURRENT
+        if roamer is not None:
+            roamer.enabled = not want_off
+            if pet and not want_off:
+                from lcdmuse.pet import find_pet, pet_dirs
+                picked = find_pet(pet, pet_dirs(self.cfg))
+                if picked is not None:
+                    roamer.pet = picked
+            self.cfg.pet_enabled = roamer.enabled
+            self._save()
+            return {"ok": True, "data": {"pet": roamer.pet.name if roamer.enabled else None,
+                                         "enabled": roamer.enabled}}
         player = self._player(device_id)
-        name = player.pet_name
-        if enabled is False or (pet in ("", "none", "off")):
-            name = None
-        else:
-            name = pet or name or (self.cfg.default_pet or "whale-girl")
+        name = None if want_off else (pet or player.pet_name or (self.cfg.default_pet or "whale-girl"))
         player.set_pet(name)
+        self.cfg.pet_enabled = name is not None
+        self._save()
         return {"ok": True, "data": {"pet": player.pet_name, "enabled": player.pet_name is not None}}
 
     def pet_state(self, state: str, device_id: str | None = None, **_kw) -> dict[str, Any]:
@@ -328,7 +346,8 @@ class Toolbox:
         driver = self._driver(player)
         image = media.frame().convert("RGB")
         frame = Frame.from_image(image)
-        driver.push_frame(frame)
+        with player.io_lock:
+            driver.push_frame(frame)
         player.status.frames += 1
         player.last_image = image
         return {"ok": True, "data": {"device": player.plugin_id, "size": list(image.size),
@@ -447,7 +466,11 @@ def handle(request: dict[str, Any], toolbox: Toolbox) -> dict[str, Any] | None:
 # ── stdio 传输：转给托盘 ────────────────────────────────────────────────
 def _post(url: str, request: dict[str, Any], timeout: float = 30.0) -> dict[str, Any]:
     body = json.dumps(request, ensure_ascii=False).encode()
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+    headers = {"Content-Type": "application/json"}
+    token = str(read_runtime().get("token") or "")     # 托盘启动时生成的控制令牌
+    if token:
+        headers["X-LCDMUSE-Token"] = token
+    req = urllib.request.Request(url, data=body, headers=headers)
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode() or "{}")
 

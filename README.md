@@ -106,6 +106,16 @@ mcpServers:
 | 接口 | `lcdmuse/webui.py` 的 `/api/*` | 回 JSON/PNG，跟界面无关；想接自己的前端 / 手机页面就调这几个 |
 | 服务 | `lcdmuse/player.py`、`drivers/` 插件 | 推帧与设备，不关心谁在调它 |
 
+所有 POST（含 `/mcp`）都要带控制令牌，并只接受本机 Host / 同源 Origin：
+
+```
+X-LCDMUSE-Token: <runtime.json 里的 token>
+```
+
+令牌每次启动重新生成，写在 `%APPDATA%\lcdmuse
+untime.json`（权限 600）；面板页面自带它，
+脚本和 MCP 桥接从 runtime.json 读。没有令牌一律 403。
+
 接口一览：
 
 | 方法 | 路径 | 作用 |

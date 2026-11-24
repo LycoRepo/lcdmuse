@@ -10,7 +10,8 @@ from typing import Any
 
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+from lcdmuse.paths import REPO_ROOT, asset_dir
+
 APP_NAME = "lcdmuse"
 
 
@@ -29,12 +30,14 @@ def default_user_drivers_dir() -> Path:
 
 @dataclass
 class Config:
-    drivers_dir: Path = field(default_factory=lambda: REPO_ROOT / "drivers")
+    drivers_dir: Path = field(default_factory=lambda: asset_dir("drivers"))
     user_drivers_dir: Path = field(default_factory=default_user_drivers_dir)
-    themes_dir: Path = field(default_factory=lambda: REPO_ROOT / "themes")
+    themes_dir: Path = field(default_factory=lambda: asset_dir("themes"))
     user_themes_dir: Path = field(default_factory=lambda: default_user_dir() / "themes")
-    fonts_dir: Path = field(default_factory=lambda: REPO_ROOT / "res" / "fonts")
-    pets_dir: Path = field(default_factory=lambda: REPO_ROOT / "pets")
+    fonts_dir: Path = field(default_factory=lambda: REPO_ROOT / "res" / "fonts"
+                            if (REPO_ROOT / "res" / "fonts").is_dir()
+                            else asset_dir("res") / "fonts")
+    pets_dir: Path = field(default_factory=lambda: asset_dir("pets"))
     user_pets_dir: Path = field(default_factory=lambda: default_user_dir() / "pets")
     out_dir: Path = field(default_factory=lambda: REPO_ROOT / "out")
     theme: str = "bezel-mask"        # 主题插件 id（themes/<id>/theme.yaml）；空 = 用测试卡
@@ -67,7 +70,7 @@ class Config:
             cfg.drivers = dict(data.get("drivers") or {})
             cfg.device_names = {str(k): str(v) for k, v in (data.get("device_names") or {}).items()}
             cfg.device_themes = {str(k): str(v) for k, v in (data.get("device_themes") or {}).items()}
-            cfg.path = p
+        cfg.path = p                      # 文件还不存在也算「有来源」，首次保存会新建它
         return cfg
 
     def name_for(self, plugin_id: str, fallback: str = "") -> str:
@@ -85,7 +88,7 @@ class Config:
     def save(self, path: Path | str | None = None) -> Path:
         """只回写我们管的几个键，其余保持原样。"""
         p = Path(path) if path else self.path
-        if p is None:                     # 不是从配置文件起来的实例：不许写回，免得把别人的配置冲掉
+        if p is None:                     # 临时实例（测试、MCP 探测）不许写回，免得冲掉主配置
             log.warning("这个 Config 没有来源文件，跳过回写（用 Config.load() 或显式传 path）")
             return Path(f"{APP_NAME}.yaml")
         data: dict[str, Any] = {}

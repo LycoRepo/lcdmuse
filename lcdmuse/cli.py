@@ -58,6 +58,7 @@ def cmd_render(args: argparse.Namespace, cfg: Config) -> int:
         width = args.width or 960
         height = args.height or 480
         out_path = Path(args.out) if args.out else (cfg.ensure_out() / "offline.png")
+        out_path.parent.mkdir(parents=True, exist_ok=True)   # 干净克隆里 out/ 可能还不存在
         comp, theme_info, pet_info = _build_composition(args, cfg, width, height)
         image = comp.render((width, height))
         image.save(str(out_path))
@@ -75,6 +76,7 @@ def cmd_render(args: argparse.Namespace, cfg: Config) -> int:
     reg = Registry(cfg.drivers_dirs)
     plugin_id = args.plugin
     out_path = Path(args.out) if args.out else (cfg.ensure_out() / "render.png")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
     driver_cfg = cfg.driver_config(plugin_id)
     if args.width:

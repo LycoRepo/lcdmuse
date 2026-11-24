@@ -154,7 +154,7 @@ def _make_roamer(cfg: Config, players: list) -> Any:
 
 
 def run_tray(cfg: Config, plugin_id: str = "", interval: float = 0.2,
-             pet: str | None = "whale-girl", port: int = 0) -> int:
+             pet: str | None = None, port: int = 0) -> int:
     try:
         import pystray
     except Exception as exc:                               # 缺依赖时给一句人话
@@ -166,8 +166,13 @@ def run_tray(cfg: Config, plugin_id: str = "", interval: float = 0.2,
         print(f"{APP_NAME} 托盘已经在运行了（右下角找一下）", file=sys.stderr)
         return 0
 
+    # pet 参数没给就跟配置走；配置里关掉就别开
+    if pet is None:
+        pet = (cfg.default_pet or "whale-girl") if cfg.pet_enabled else None
     players = _build_players(cfg, plugin_id, interval, pet)
     roamer = _make_roamer(cfg, players)
+    if roamer is not None:
+        roamer.enabled = bool(cfg.pet_enabled)      # 托盘、面板、MCP 共用这一个开关
     for p in players:
         p.roamer = roamer
         p.single_pet = True                 # 现在「只有一只」是硬规则，不是可选项
@@ -210,9 +215,17 @@ def run_tray(cfg: Config, plugin_id: str = "", interval: float = 0.2,
         refresh()
 
     def on_toggle_pet(icon_: pystray.Icon, item) -> None:
-        enable = players[0].pet_name is None
-        for p in players:
-            p.set_pet((cfg.default_pet or "whale-girl") if enable else None)
+        roamer_ = roamer
+        if roamer_ is not None:
+            roamer_.enabled = not roamer_.enabled
+            cfg.pet_enabled = roamer_.enabled
+        else:
+            enable = players[0].pet_name is None
+            for p in players:
+                p.set_pet((cfg.default_pet or "whale-girl") if enable else None)
+            cfg.pet_enabled = enable
+        with contextlib.suppress(Exception):
+            cfg.save()
         refresh()
 
     def on_plugins(icon_: pystray.Icon, item) -> None:
@@ -241,7 +254,8 @@ def run_tray(cfg: Config, plugin_id: str = "", interval: float = 0.2,
         pystray.MenuItem("暂停 / 继续", on_toggle_pause,
                          checked=lambda item: players[0].status.paused),
         pystray.MenuItem("桌宠", on_toggle_pet,
-                         checked=lambda item: players[0].pet_name is not None),
+                             checked=lambda item: (roamer.enabled if roamer is not None
+                                                   else players[0].pet_name is not None)),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("打开插件目录", on_plugins),
         pystray.MenuItem("打开日志", on_logs),

@@ -423,9 +423,14 @@ def test_web_control_console_serves_state_and_preview(tmp_path):
         assert png[:8] == b"\x89PNG\r\n\x1a\n"
         assert _Image.open(io.BytesIO(png)).size == (960, 480)
 
-        def post(path, payload):
+        from lcdmuse.webui import control_token
+        token = control_token()
+
+        def post(path, payload, headers=None):
+            base_headers = {"Content-Type": "application/json", "X-LCDMUSE-Token": token}
+            base_headers.update(headers or {})
             req = urllib.request.Request(base + path, data=json.dumps(payload).encode(),
-                                         headers={"Content-Type": "application/json"})
+                                         headers=base_headers)
             return json.loads(urllib.request.urlopen(req, timeout=5).read())
 
         assert post("/api/pause", {})["paused"] is True
@@ -702,6 +707,8 @@ def test_mcp_render_preview_and_web_endpoint(tmp_path):
     try:
         base = f"http://127.0.0.1:{port}"
         runtime = read_runtime()
+        _token = str(runtime.get("token") or "")
+        assert _token, "runtime.json 里应该有控制令牌"
         assert runtime.get("port") == port
 
         def rpc(method, params=None, req_id=1):
@@ -709,7 +716,8 @@ def test_mcp_render_preview_and_web_endpoint(tmp_path):
                                          data=_json.dumps({"jsonrpc": "2.0", "id": req_id,
                                                            "method": method,
                                                            "params": params or {}}).encode(),
-                                         headers={"Content-Type": "application/json"})
+                                         headers={"Content-Type": "application/json",
+                                                  "X-LCDMUSE-Token": _token})
             return _json.loads(urllib.request.urlopen(req, timeout=10).read())
 
         assert rpc("tools/list")["result"]["tools"]
@@ -835,3 +843,138 @@ def test_roaming_pet_is_on_one_screen_at_a_time():
     assert roam.current == "screenB"
     assert roam.draw_on("screenB", 800, 400, step=0, now=10.6) is not None
     assert roam.draw_on("screenA", 800, 400, step=0, now=10.6) is None
+
+
+# ── 审查意见回归：控制接口鉴权 / 主题目录越界 / 插件升级回滚 / 设备写锁 ─────
+def test_control_endpoints_require_token_and_local_origin(tmp_path):
+    """没有令牌、Host 或 Origin 不在本机，控制请求一律 403；页面里有令牌。"""
+    import json
+    import urllib.error
+    import urllib.request
+
+    from lcdmuse.config import Config
+    from lcdmuse.webui import control_token, start_server
+
+    cfg = Config()
+    cfg.user_drivers_dir = tmp_path / "drivers"
+    server, port = start_server([_DummyPlayer(cfg)], cfg)
+    base = f"http://127.0.0.1:{port}"
+    token = control_token()
+    try:
+        page = urllib.request.urlopen(base + "/", timeout=5).read().decode()
+        assert f'name="lcdmuse-token" content="{token}"' in page
+
+        def post(payload, headers):
+            req = urllib.request.Request(base + "/api/pause", data=json.dumps(payload).encode(),
+                                         headers={"Content-Type": "application/json", **headers})
+            return urllib.request.urlopen(req, timeout=5)
+
+        # 没有令牌
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            post({"paused": True}, {})
+        assert exc.value.code == 403
+        # 令牌对、但来源是外部站点
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            post({"paused": True}, {"X-LCDMUSE-Token": token, "Origin": "http://evil.example"})
+        assert exc.value.code == 403
+        # 令牌对、来源是本机 → 通过
+        assert post({"paused": True}, {"X-LCDMUSE-Token": token,
+                                       "Origin": f"http://127.0.0.1:{port}"}).status == 200
+    finally:
+        server.shutdown()
+
+
+def test_theme_install_rejects_path_traversal(tmp_path):
+    """主题 id 里带路径成分时拒绝安装，不能在主题根目录外写东西。"""
+    from lcdmuse.webui import install_theme_files
+
+    src = tmp_path / "evil-theme"
+    src.mkdir()
+    (src / "theme.yaml").write_text("id: ../escaped\napi: 1\n", encoding="utf-8")
+    user_root = tmp_path / "themes"
+    user_root.mkdir()
+    result = install_theme_files(src, user_root)
+    assert result["ok"] is False
+    assert "不合法" in result["error"] or "之外" in result["error"]
+    assert not (tmp_path / "escaped").exists()
+
+
+def test_plugin_upgrade_failure_keeps_old_version(tmp_path):
+    """升级到不兼容版本失败时，旧插件必须还在可用状态。"""
+    from lcdmuse.plugin_store import PluginError, install_plugin, load_plugins
+
+    root = tmp_path / "drivers"
+
+    def make_plugin(dirname, api):
+        d = tmp_path / dirname
+        d.mkdir()
+        (d / "driver.yaml").write_text(
+            f"id: demo_panel\nname: Demo\nversion: 1.0\napi: {api}\nentry: driver:Demo\n",
+            encoding="utf-8")
+        (d / "driver.py").write_text(
+            "from lcdmuse.lcd_comm import LcdComm\n\n\nclass Demo(LcdComm):\n    pass\n",
+            encoding="utf-8")
+        return d
+
+    install_plugin(make_plugin("good", 1), root)
+    installed = {p.id: p for p in load_plugins(root, origin="user")}
+    assert installed["demo_panel"].available
+
+    with pytest.raises(PluginError):
+        install_plugin(make_plugin("bad", 99), root, force=True)
+
+    still = {p.id: p for p in load_plugins(root, origin="user")}
+    assert "demo_panel" in still and still["demo_panel"].available
+    assert (root / "demo_panel" / "driver.yaml").is_file()
+
+
+def test_player_pushes_are_serialised_by_io_lock(tmp_path):
+    """播放线程和 MCP 同时推帧时，驱动里不会真的并发执行。"""
+    import threading
+    import time as _time
+
+    from lcdmuse.config import Config
+    from lcdmuse.lcd_comm import DeviceInfo, Frame
+    from lcdmuse.player import Player
+
+    cfg = Config()
+    cfg.user_drivers_dir = tmp_path / "drivers"
+    player = Player(cfg, "fake", interval=0.01)
+    player.plugin_id = "fake"
+
+    inside = []
+    overlap = []
+
+    class SlowDriver:
+        def push_frame(self, frame):
+            inside.append(1)
+            if len(inside) > 1:
+                overlap.append(len(inside))
+            _time.sleep(0.05)
+            inside.pop()
+
+        def tick(self, now):
+            return None
+
+    player._info = DeviceInfo(id="fake", name="Fake", width=960, height=480)
+    player._driver = SlowDriver()
+
+    from PIL import Image as _Image
+    image = _Image.new("RGB", (960, 480), (0, 0, 0))
+    frame = Frame.from_image(image)
+
+    errors = []
+
+    def push():
+        try:
+            with player.io_lock:
+                player._driver.push_frame(frame)
+        except Exception as exc:                       # noqa: BLE001
+            errors.append(exc)
+
+    threads = [threading.Thread(target=push) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert not overlap and not errors

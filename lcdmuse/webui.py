@@ -14,6 +14,8 @@ import contextlib
 import io
 import json
 import os
+import re
+import secrets
 import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -29,6 +31,7 @@ if TYPE_CHECKING:                                     # pragma: no cover
     from lcdmuse.player import Player
 
 
+_THEME_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 _DIALOG_LOCK = threading.Lock()
 
 
@@ -59,8 +62,14 @@ def install_theme_files(src_path: str | Path, user_root: str | Path, mode: str =
             import yaml
             meta = yaml.safe_load((src / "theme.yaml").read_text(encoding="utf-8")) or {}
             theme_id = str(meta.get("id") or theme_id)
+        # 主题 id 只能是单层目录名：不接受路径分隔符、..、绝对路径
+        if not _THEME_ID_RE.match(theme_id) or theme_id in (".", ".."):
+            raise ValueError(f"主题 id 不合法: {theme_id!r}（只允许字母、数字、下划线、短横线）")
         user_root.mkdir(parents=True, exist_ok=True)
-        dest = user_root / theme_id
+        root_resolved = user_root.resolve()
+        dest = (user_root / theme_id).resolve()
+        if root_resolved not in dest.parents:
+            raise ValueError(f"主题目录解析到根目录之外: {dest}")
         if dest.exists():
             shutil.rmtree(dest)
         shutil.copytree(src, dest)
@@ -70,6 +79,15 @@ def install_theme_files(src_path: str | Path, user_root: str | Path, mode: str =
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _active_pet(players: list[Player]) -> str | None:
+    """桌宠是否真的在跑只有一个判据：巡游实例开着就报它的名字。"""
+    from lcdmuse import roam as roam_mod
+    roamer = roam_mod.CURRENT
+    if roamer is not None:
+        return roamer.pet.name if roamer.enabled else None
+    return players[0].pet_name if players else None
 
 
 def _state(players: list[Player], cfg: Config, selected: int) -> dict[str, Any]:
@@ -88,7 +106,7 @@ def _state(players: list[Player], cfg: Config, selected: int) -> dict[str, Any]:
             "paused": st.paused,
             "running": st.running,
             "error": st.last_error,
-            "pet": player.pet_name,
+            "pet": _active_pet(players),
             "theme": player.theme_id,
         })
     theme = players[0].theme_id if players else ""
@@ -113,11 +131,39 @@ def _preview_png(players: list[Player], index: int) -> bytes | None:
     return buf.getvalue()
 
 
+_TOKEN = secrets.token_urlsafe(24)
+
+
+def control_token() -> str:
+    """本次启动生成的控制令牌：写进 runtime.json，面板和 MCP 都带它来。"""
+    return _TOKEN
+
+
 class _Handler(BaseHTTPRequestHandler):
     players: list[Player] = []
     cfg: Config
     selected = 0
     on_quit = None
+    token: str = ""
+
+    def _guard(self) -> bool:
+        """本地控制接口的入口校验：只认本机 Host、同源 Origin、带令牌。"""
+        host = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip("[]")
+        if host not in ("127.0.0.1", "localhost", "::1"):
+            self._json({"ok": False, "error": "只接受本机地址访问"}, 403)
+            return False
+        origin = self.headers.get("Origin")
+        if origin:
+            from urllib.parse import urlparse as _urlparse
+            src = (_urlparse(origin).hostname or "")
+            if src not in ("127.0.0.1", "localhost", "::1"):
+                self._json({"ok": False, "error": f"来源不在本机: {origin}"}, 403)
+                return False
+        sent = self.headers.get("X-LCDMUSE-Token") or ""
+        if not self.token or not secrets.compare_digest(sent, self.token):
+            self._json({"ok": False, "error": "控制令牌不对（从面板或 runtime.json 取）"}, 403)
+            return False
+        return True
 
     # 安静点：默认实现每请求打一行日志，控制台会刷屏
     def log_message(self, format: str, *args) -> None:   # noqa: A002
@@ -139,6 +185,9 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_error(HTTPStatus.NOT_FOUND, f"no {name}")
             return
         body = path.read_bytes()
+        if path.name == "index.html" and self.token:      # 页面拿不到令牌就没法调用控制接口
+            body = body.replace(b"</head>",
+                                f'<meta name="lcdmuse-token" content="{self.token}"></head>'.encode())
         self.send_response(200)
         self.send_header("Content-Type", _MIME.get(path.suffix, "application/octet-stream"))
         self.send_header("Content-Length", str(len(body)))
@@ -283,6 +332,9 @@ class _Handler(BaseHTTPRequestHandler):
         except Exception:
             data = {}
 
+        if not self._guard():                       # 有副作用的请求先验令牌/来源
+            return None
+
         if url.path == "/mcp":                      # DSH 的 MCP 请求（JSON-RPC 2.0）
             try:
                 request = json.loads(raw.decode() or "{}")
@@ -325,8 +377,10 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._json({"ok": True, "index": index, "enabled": enable,
                                    "pet": player.pet_name})
             roamer.enabled = (not roamer.enabled) if want is None else bool(want)
+            self.cfg.pet_enabled = roamer.enabled       # 和托盘、MCP 共用这一个开关
+            self.cfg.save()
             return self._json({"ok": True, "enabled": roamer.enabled,
-                               "pet": roamer.pet.name})
+                               "pet": roamer.pet.name if roamer.enabled else None})
 
         if url.path == "/api/pet/activity":
             from lcdmuse import roam as roam_mod
@@ -420,9 +474,10 @@ class _Handler(BaseHTTPRequestHandler):
             return self._json({"ok": True, "background": path})
 
         if url.path == "/api/quit":
+            callback = type(self).__dict__.get("on_quit")   # 直接取类属性，避免被当成方法多塞 self
             self._json({"ok": True})
-            if self.on_quit:
-                threading.Thread(target=self.on_quit, daemon=True).start()
+            if callback:
+                threading.Thread(target=callback, daemon=True).start()
             return None
 
         self.send_error(HTTPStatus.NOT_FOUND)
@@ -432,13 +487,15 @@ class _Handler(BaseHTTPRequestHandler):
 def start_server(players: list[Player], cfg: Config, port: int = 0,
                  on_quit=None, publish_runtime: bool = False) -> tuple[ThreadingHTTPServer, int]:
     """起一个只监听 127.0.0.1 的小服务；port=0 由系统分配。"""
-    handler = type("BoundHandler", (_Handler,), {"players": players, "cfg": cfg, "on_quit": on_quit})
+    handler = type("BoundHandler", (_Handler,),
+                   {"players": players, "cfg": cfg, "on_quit": on_quit,
+                    "token": _TOKEN})
     server = ThreadingHTTPServer(("127.0.0.1", port), handler)
     thread = threading.Thread(target=server.serve_forever, name="lcdmuse-web", daemon=True)
     thread.start()
     bound = server.server_address[1]
     if publish_runtime:           # 只有托盘有权把端口写盘，别人（测试/临时实例）不许覆盖
-        write_runtime(bound)
+        write_runtime(bound, token=_TOKEN)
         atexit.register(clear_runtime)
     log.info("控制台：http://127.0.0.1:%d/   （MCP 端点 /mcp）", bound)
     return server, bound

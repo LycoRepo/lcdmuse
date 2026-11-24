@@ -111,21 +111,27 @@ def load_plugins(driver_root: Path | str, origin: str = "builtin") -> list[Drive
                                         available=False, reason=f"driver.yaml 解析失败: {exc}"))
             continue
 
-        plugin = DriverPlugin(
-            id=str(data.get("id") or driver_dir.name),
-            name=str(data.get("name") or driver_dir.name),
-            version=str(data.get("version") or "0.0.0"),
-            api=int(data.get("api") or 0),
-            entry=str(data.get("entry") or ""),
-            path=driver_dir,
-            platforms=list(data.get("platforms") or []),
-            requires=list(data.get("requires") or []),
-            description=str(data.get("description") or ""),
-            settings_schema=dict(data.get("settings_schema") or {}),
-            enabled_by_default=bool(data.get("enabled_by_default", True)),
-            origin=origin,
-            min_core=str(data.get("min_core") or ""),
-        )
+        try:                                   # 清单字段写坏只影响自己，别把整个扫描带走
+            plugin = DriverPlugin(
+                id=str(data.get("id") or driver_dir.name),
+                name=str(data.get("name") or driver_dir.name),
+                version=str(data.get("version") or "0.0.0"),
+                api=int(data.get("api") or 0),
+                entry=str(data.get("entry") or ""),
+                path=driver_dir,
+                platforms=[str(v) for v in (data.get("platforms") or [])],
+                requires=[str(v) for v in (data.get("requires") or [])],
+                description=str(data.get("description") or ""),
+                settings_schema=dict(data.get("settings_schema") or {}),
+                enabled_by_default=bool(data.get("enabled_by_default", True)),
+                origin=origin,
+                min_core=str(data.get("min_core") or ""),
+            )
+        except (TypeError, ValueError) as exc:
+            plugins.append(DriverPlugin(id=driver_dir.name, name=driver_dir.name, version="?",
+                                        api=0, entry="", path=driver_dir,
+                                        available=False, reason=f"清单字段不合法: {exc}"))
+            continue
 
         if _core_too_old(plugin.min_core):
             plugin.available, plugin.reason = False, (

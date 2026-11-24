@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import time
 import stat
 import tempfile
 import zipfile
@@ -86,22 +87,41 @@ def install_plugin(src: Path | str, user_root: Path | str | None = None,
         if not _ID_RE.match(plugin_id):
             raise PluginError(f"插件 id 不合法: {plugin_id!r}（只允许小写字母、数字、下划线）")
 
-        dest = root / plugin_id
+        root.mkdir(parents=True, exist_ok=True)
+        dest = (root / plugin_id).resolve()
+        if root.resolve() not in dest.parents:       # id 里混了 .. 之类，别写到目录外
+            raise PluginError(f"插件 id 解析到目录外: {dest}")
         if dest.exists() and not force:
             raise PluginError(f"{plugin_id} 已经装过，覆盖请加 --force")
-        if dest.exists():
-            _rmtree(dest)
 
-        root.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(src_dir, dest, ignore=shutil.ignore_patterns(*_IGNORE))
+        # 先在临时目录装好、验证能加载，再原子替换；失败时旧版本原样留着
+        stamp = f"{os.getpid()}-{int(time.time() * 1000)}"
+        staging = root / f".staging-{stamp}"
+        backup = root / f".backup-{stamp}"
+        try:
+            staging.mkdir(parents=True)
+            staged = staging / plugin_id
+            shutil.copytree(src_dir, staged, ignore=shutil.ignore_patterns(*_IGNORE))
 
-        loaded = {p.id: p for p in load_plugins(root, origin="user")}
-        plugin: DriverPlugin | None = loaded.get(plugin_id)
-        if plugin is None or not plugin.available:
-            reason = plugin.reason if plugin else "扫描后没找到它"
-            shutil.rmtree(dest, ignore_errors=True)
-            raise PluginError(f"复制成功但加载失败，已回滚: {reason}")
-        return plugin.to_dict()
+            loaded = {p.id: p for p in load_plugins(staging, origin="user")}
+            plugin: DriverPlugin | None = loaded.get(plugin_id)
+            if plugin is None or not plugin.available:
+                reason = plugin.reason if plugin else "扫描后没找到它"
+                raise PluginError(f"新版本校验没过，{plugin_id} 未改动: {reason}")
+
+            if dest.exists():
+                dest.rename(backup)
+            staged.rename(dest)
+            _rmtree(backup) if backup.exists() else None
+            return plugin.to_dict()
+        except Exception:
+            if backup.exists() and not dest.exists():
+                backup.rename(dest)                  # 旧版本放回去
+            raise
+        finally:
+            for leftover in (staging, backup):
+                if leftover.exists():
+                    shutil.rmtree(leftover, ignore_errors=True)
     finally:
         if tmp is not None:
             shutil.rmtree(tmp, ignore_errors=True)

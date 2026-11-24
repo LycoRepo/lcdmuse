@@ -75,7 +75,8 @@ class Player:
         self.status.extra["theme"] = self._theme_id
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
-        self._lock = threading.Lock()
+        self._lock = threading.Lock()      # 渲染/状态
+        self.io_lock = threading.RLock()   # 设备写入：播放线程、MCP、面板共用这一把
 
     # ── 自动挑设备 ──────────────────────────────────────────────────────
     def autodetect(self) -> str:
@@ -181,7 +182,8 @@ class Player:
         if callable(tick):                 # SAMA 这类要定时重发保活，别让屏自己睡过去
             with contextlib.suppress(Exception):
                 tick(time.time())
-        driver.push_frame(frame)
+        with self.io_lock:                 # MCP/面板推帧也走这把锁，别两路同时写同一个设备
+            driver.push_frame(frame)
 
     def _safe_area(self) -> tuple[int, int, int, int]:
         """面板被外框挡住的边：驱动配置里的 safe_area = [左, 上, 右, 下]。
@@ -252,8 +254,8 @@ class Player:
         return self._theme_id
 
     def set_theme(self, theme_id: str | None) -> str:
+        """只改这块屏用哪个主题；要不要一起改全局默认由调用方决定。"""
         self._theme_id = theme_id or ""
-        self.cfg.theme = self._theme_id
         self.status.extra["theme"] = self._theme_id
         self._comp = None
         return self._theme_id
@@ -293,7 +295,8 @@ class Player:
             return False
         try:
             driver = self.registry.open(self.plugin_id, self.cfg.driver_config(self.plugin_id))
-            self._info = driver.open()
+            with self.io_lock:                 # 打开/关闭也排队，避免和推帧撞上
+                self._info = driver.open()
             self._driver = driver
             self.status.device = self._info.name
             self.status.size = (self._info.width, self._info.height)
@@ -307,7 +310,7 @@ class Player:
             return False
 
     def _close(self) -> None:
-        with self._lock:
+        with self._lock, self.io_lock:
             if self._driver is not None:
                 with contextlib.suppress(Exception):
                     self._driver.close()

@@ -4,8 +4,15 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c =>
   ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
+function token(){
+  const m = document.querySelector('meta[name="lcdmuse-token"]');
+  return m ? m.content : "";
+}
+
 async function api(path, body){
-  const r = await fetch(path, body ? {method:"POST", headers:{"Content-Type":"application/json"},
+  const h = {"Content-Type":"application/json"};
+  const tk = token(); if (tk) h["X-LCDMUSE-Token"] = tk;
+  const r = await fetch(path, body ? {method:"POST", headers:h,
     body: JSON.stringify(body)} : undefined);
   return r.json();
 }

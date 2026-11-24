@@ -24,7 +24,7 @@ packages = ["lcdmuse", "lcdmuse.render", "lcdmuse.transport"]
 include-package-data = true
 
 [tool.setuptools.package-data]
-lcdmuse = ["web/*"]
+lcdmuse = ["web/*", "data/**/*", "data/**/**/*"]
 
 [tool.ruff]
 line-length = 120
