@@ -978,3 +978,28 @@ def test_player_pushes_are_serialised_by_io_lock(tmp_path):
     for t in threads:
         t.join()
     assert not overlap and not errors
+
+
+def test_installed_driver_is_enabled_in_config(tmp_path):
+    """plugin add 之后配置里要有 enabled: true，否则默认不启用的驱动会被静默跳过。"""
+    from lcdmuse.config import Config
+    from lcdmuse.plugin_store import install_plugin
+
+    src = tmp_path / "demo"
+    src.mkdir()
+    (src / "driver.yaml").write_text(
+        "id: demo_panel\nname: Demo\nversion: 1.0\napi: 1\nentry: driver:Demo\n"
+        "enabled_by_default: false\n", encoding="utf-8")
+    (src / "driver.py").write_text(
+        "from lcdmuse.lcd_comm import LcdComm\n\n\nclass Demo(LcdComm):\n    pass\n",
+        encoding="utf-8")
+
+    cfg_path = tmp_path / "lcdmuse.yaml"
+    cfg = Config.load(cfg_path)
+    cfg.user_drivers_dir = tmp_path / "drivers"
+    info = install_plugin(src, cfg.user_drivers_dir)
+    cfg.drivers.setdefault(info["id"], {})["enabled"] = True   # 与 cmd_plugin_add 同样的动作
+    cfg.save()
+
+    reloaded = Config.load(cfg_path)
+    assert reloaded.driver_config("demo_panel").get("enabled") is True

@@ -106,6 +106,9 @@ mcpServers:
 | 接口 | `lcdmuse/webui.py` 的 `/api/*` | 回 JSON/PNG，跟界面无关；想接自己的前端 / 手机页面就调这几个 |
 | 服务 | `lcdmuse/player.py`、`drivers/` 插件 | 推帧与设备，不关心谁在调它 |
 
+`lcdmuse plugin add` 装完会自动写 `drivers.<id>.enabled: true`；如果是手动拷进用户目录，
+清单里 `enabled_by_default: false` 的驱动默认不探测，要在配置里显式启用，日志会提示。
+
 所有 POST（含 `/mcp`）都要带控制令牌，并只接受本机 Host / 同源 Origin：
 
 ```

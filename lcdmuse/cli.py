@@ -122,6 +122,11 @@ def cmd_plugin_list(args: argparse.Namespace, cfg: Config) -> int:
 def cmd_plugin_add(args: argparse.Namespace, cfg: Config) -> int:
     try:
         info = install_plugin(args.source, cfg.user_drivers_dir, force=args.force)
+        # 装完就启用：不然 enabled_by_default=false 的驱动会被静默跳过，看着像「没启动」
+        plugin_id = str(info.get("id") or "")
+        if plugin_id:
+            cfg.drivers.setdefault(plugin_id, {})["enabled"] = True
+            cfg.save()
     except PluginError as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False, indent=2))
         return 1
