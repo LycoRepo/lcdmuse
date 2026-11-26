@@ -34,7 +34,7 @@ lcdmuse 的做法：**核心只认契约，不认硬件**。屏幕是谁家的�
 ## 快速开始（不用接屏）
 
 ```bash
-git clone https://github.com/LycoRepo/lcdmuse.git
+git clone https://github.com/Phenix704/lcdmuse.git
 cd lcdmuse
 pip install -e ".[dev]"
 
