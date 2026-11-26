@@ -76,7 +76,12 @@ class Registry:
             if only and plugin.id != only:
                 continue
             opts = dict(options.get(plugin.id) or {})
-            if not plugin.cls or not self._platform_ok(plugin) or not self._enabled(plugin, opts):
+            if not plugin.cls or not self._platform_ok(plugin):
+                continue
+            if not self._enabled(plugin, opts):
+                # 装了但没开：说清楚，不然用户只会看到「这块屏没启动」
+                log.info("跳过 %s：驱动默认不启用，配置里加 drivers.%s.enabled: true 才会探测",
+                         plugin.id, plugin.id)
                 continue
             try:
                 info = plugin.cls.probe(opts)
