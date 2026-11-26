@@ -8,6 +8,8 @@ on:
 jobs:
   test:
     runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v7
@@ -29,8 +31,10 @@ jobs:
           python -m pip wheel . -w dist --no-deps
           python -m venv smoke
           smoke\Scripts\python.exe -m pip install --quiet --upgrade pip
-          smoke\Scripts\python.exe -m pip install --quiet dist\*.whl
-          smoke\Scripts\python.exe -m lcdmuse.cli drivers list | Out-String | Write-Host
-          $out = smoke\Scripts\python.exe -m lcdmuse.cli render --offline --plugin simulated --width 960 --height 480
+          $wheel = (Get-Item dist\lcdmuse-*.whl).FullName
+          smoke\Scripts\python.exe -m pip install --quiet $wheel
+          smoke\Scripts\python.exe -P -m lcdmuse.cli drivers list | Out-String | Write-Host
+          if ($LASTEXITCODE -ne 0) { throw "wheel 安装后无法列出驱动" }
+          $out = smoke\Scripts\python.exe -P -m lcdmuse.cli render --offline --width 960 --height 480
           $out | Write-Host
-          if ($out -notmatch '"ok": true') { throw "wheel 安装后离线渲染失败" }
+          if ($LASTEXITCODE -ne 0 -or -not (($out -join "`n" | ConvertFrom-Json).ok)) { throw "wheel 安装后离线渲染失败" }
