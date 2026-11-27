@@ -329,7 +329,6 @@ CI 的 System monitor 测试不拉整份 `res/`：`.github/actions/fetch-theme-a
 
 - 不把型号、序列号、VID/PID、串口号写进 `lcdmuse/` 或文档正文。
 - 不在核心引 `numpy`/`pyusb` 这类重依赖，它们只属于具体驱动的 `requires`。
-- 不在设备所有者不在场时操作真实屏幕，不抢厂商软件占用的串口；自动化测试一律 `simulated` / `--offline`。
 - 不删上游版权与许可声明。
 
 ## 15. 已知缺口
